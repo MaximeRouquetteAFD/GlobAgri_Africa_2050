@@ -1,0 +1,5 @@
+# Exemple à copier dans ton vrai ~/.Renviron
+
+RSCONNECT_ACCOUNT=
+RSCONNECT_TOKEN=
+RSCONNECT_SECRET=

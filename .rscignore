@@ -1,0 +1,18 @@
+# Exclure du bundle shinyapps.io
+.Renviron
+.Rprofile
+.git/
+.Rhistory
+.RData
+.Rproj.user
+renv/staging
+notebooks/
+docs/
+
+# si tu n'en as pas besoin à l'exécution :
+*.csv
+*.zip
+*.parquet
+
+# (garde renv.lock !)
+
