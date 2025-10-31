@@ -1,0 +1,506 @@
+/* ===== Design tokens ===== */
+:root{
+  --app-font: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+
+  --title-color:#212529;
+  --subtitle-color:#6c757d;
+
+  --title-xxl:2rem; --title-xl:1.75rem; --title-lg:1.5rem;
+  --title-md:1.25rem; --title-sm:1.125rem; --title-xs:1rem;
+  --title-weight:600; --title-margin:0 0 8px 0;
+
+  /* Nav + focus */
+  --nav-bg:#ffffff;
+  --nav-text:#334155;
+  --nav-text-hover:#000091;
+  --nav-active:#000091;
+  --nav-sep:#e5e7eb;
+  --nav-underline:#000091;
+
+  --brand-blue:#000091;
+  --brand-blue-ring:rgba(0,0,145,.28);
+
+  /* Cards (design system) */
+  --card-bg:#f8f9fa;
+  --card-bd:#e5e5e5;
+  --card-radius:12px;
+  --card-pad:16px;
+  --card-shadow:0 4px 14px rgba(16,24,40,0.04);
+  --card-shadow-hover:0 6px 18px rgba(16,24,40,0.06);
+  --value-color:#1f2937;
+
+  /* Header spacing */
+  --header-gap:24px; /* mobile / défaut */
+}
+
+/* desktop override for header gap */
+@media (min-width: 992px){
+  :root{ --header-gap:32px; }
+}
+
+html {
+  min-height: 100%;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+}
+
+.app-page {
+  flex: 1 0 auto;
+  display: block;
+}
+
+.app-footer {
+  flex-shrink: 0;
+  width: 100%;
+}
+
+
+/* ===== Titres / police ===== */
+body, h1,h2,h3,h4,h5,h6,
+.h1,.h2,.h3,.h4,.h5,.h6{
+  font-family:var(--app-font) !important;
+  color:var(--title-color);
+}
+h1,.h1{font-size:var(--title-xxl);font-weight:var(--title-weight);margin:var(--title-margin)}
+h2,.h2{font-size:var(--title-xl); font-weight:var(--title-weight);margin:var(--title-margin)}
+h3,.h3{font-size:var(--title-lg); font-weight:var(--title-weight);margin:var(--title-margin)}
+h4,.h4{font-size:var(--title-md); font-weight:var(--title-weight);margin:var(--title-margin)}
+h5,.h5{font-size:var(--title-sm); font-weight:var(--title-weight);margin:var(--title-margin)}
+h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--title-margin)}
+
+
+/* ================== NORMALISATION GLOBALE ================== */
+.app, .app * {
+  box-sizing: border-box;
+  font-family: var(--app-font) !important;
+  color: var(--title-color);
+}
+
+/* --- Ne pas écraser la police des icônes --- */
+.app i.fa, .app i.fas, .app i.far, .app i.fab,
+.app span.fa, .app span.fas, .app span.far, .app span.fab,
+.app i[class^="fa-"], .app i[class*=" fa-"],
+.app span[class^="fa-"], .app span[class*=" fa-"]{
+  font-family: "Font Awesome 6 Free","Font Awesome 5 Free",
+               "Font Awesome 6 Brands","Font Awesome 5 Brands" !important;
+  font-weight: 900; /* solide par défaut */
+}
+
+/* Glyphicons (Bootstrap 3) pour compatibilité downloadLink etc. */
+.app .glyphicon{
+  font-family: "Glyphicons Halflings" !important;
+  font-weight: normal !important;
+}
+
+
+/* ================== UTILITAIRES (Design System) ================== */
+
+/* ENCADRES DES GRAPHIQUES */
+.app .u-card{
+  display:block;
+  width:100%;
+  background:var(--card-bg);           /*  couleur de fond de la carte */
+  border:1px solid var(--card-bd);     /*  bordure grise claire */
+  border-radius:var(--card-radius);    /*  arrondi des coins */
+  padding:var(--card-pad);             /*  marge intérieure */
+  box-shadow:var(--card-shadow);}     /*  ombre portée légère */
+
+/* VARIANTES DES ENCADRES DES GRAPHIQUES */
+.app .u-card--flat{ box-shadow:none; }  /* même carte mais sans ombre */
+.app .u-card--hover:hover{ box-shadow:var(--card-shadow-hover); }  /* ombre un peu plus marquée au survol */
+.app .u-card--clickable{cursor:pointer; transition: box-shadow .15s ease-in-out, border-color .15s ease-in-out;} /* annonce visuellement que c'est cliquable */
+.app .u-card--focus:focus{ outline:0; }
+.app .u-card--focus:focus-visible,
+.app .is-active{border-color: var(--brand-blue) !important;box-shadow: 0 0 0 2px var(--brand-blue-ring) !important;} /* bleu à la selection */
+
+/* CONTENEUR DYNAMIQUE */
+.app .u-row{
+  display:flex;
+  gap:16px;
+  flex-wrap:wrap;          /* Autorise le retour à la ligne si pas assez de place */
+  align-items:stretch;}     /* Toutes les cartes prennent la même hauteur */
+
+@media (max-width: 767px){
+  .app .u-row{flex-direction:column;}} /* en mode vertical sur mobile*/
+  .app .u-box{ width:100%; }
+
+.app .u-row > *{
+  flex:1 1 0;              /* Chaque enfant prend une largeur flexible égale */
+  min-width:260px;}         /* En-dessous de 260px, au lieu de se tasser, il passe à la ligne */
+
+/* Centrage du contenu pour les cartes KPI (hors header bleu) */
+.app .energy-kpi .u-box,
+.app .surface-cards .u-box,
+.app .kpi-card { 
+  text-align: center;
+}
+
+/* STYLE DU TEXTE DANS LES ENCADRES */
+.app .u-title{font-size:14px;font-weight:600;color:var(--subtitle-color);margin:0 0 8px 0;} /* Sous-titre */
+.app .u-value{font-size:28px;font-weight:700;margin:0;color:var(--value-color);line-height:1.15;} /* la valeur centrale */
+.app .u-unit {font-size:12px;color:var(--subtitle-color);margin-left:6px;} /* l'unité */
+.app .u-sub{font-size:12px;color:var(--subtitle-color);margin-top:6px;} /* explication sous la valeur */
+
+/* Deltas de tendance */
+.app .u-sub .up,
+.app .u-sub .up strong{color:#0b8f6f;font-weight:600;}
+.app .u-sub .down,
+.app .u-sub .down strong{color:#c23934;font-weight:600;}
+
+/*la barre d’actions type "CSV" en bas à droite*/
+.app .u-actions{margin: 8px 0 2px;display: flex;justify-content: flex-end;gap: 10px;} 
+.app .u-actions .btn,
+.app .u-actions a{display: inline-flex;align-items: center;gap: 6px;font-weight: 600;text-decoration: none;}
+.app .u-actions a:hover{ text-decoration: underline; }
+
+
+/* ================== ENCADRÉS UNIFIÉS (hors header) ================== */
+.app .well,
+.app .panel, .app .panel-default, .app .panel-body, .app .panel-heading,
+.app .box, .app .box-body, .app .box-header,
+.app .card, .app .card-body, .app .card-header{
+  background:var(--card-bg) !important;
+  border:1px solid var(--card-bd) !important;
+  border-radius:var(--card-radius) !important;
+  box-shadow:var(--card-shadow) !important;
+}
+.app .panel-heading, .app .box-header, .app .card-header{
+  background:transparent !important;
+  border-bottom:1px solid var(--card-bd) !important;
+  color:var(--title-color) !important;
+  padding:8px 12px !important;
+  margin:0 !important;
+}
+.app .panel-body, .app .box-body, .app .card-body{
+  padding:14px 16px !important;
+}
+.app .panel{ border:none !important; }       /* supprime le double-bord BS3 */
+.app .panel-body{ border:none !important; }
+
+/* Uniformité dans les onglets (contre-styles de thèmes) */
+.app .tab-content .tab-pane .well,
+.app .tab-content .tab-pane .panel, .app .tab-content .tab-pane .panel-default,
+.app .tab-content .tab-pane .box,
+.app .tab-content .tab-pane .card{
+  background:var(--card-bg) !important;
+  border:1px solid var(--card-bd) !important;
+  border-radius:var(--card-radius) !important;
+  box-shadow:var(--card-shadow) !important;
+}
+
+
+/* KPI “historiques” — mappés sur le design system (optionnel) */
+.kpi-card{
+  background:var(--card-bg);
+  border:1px solid var(--card-bd);
+  border-radius:var(--card-radius);
+  padding:14px 16px;
+  margin: 8px 0;
+  box-shadow: var(--card-shadow);
+  text-align:center;
+}
+.kpi-card:hover{ box-shadow:var(--card-shadow-hover); }
+.kpi-head{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  margin-bottom:6px;
+}
+.kpi-title{
+  margin:0;
+  font-size:13px;
+  font-weight:600;
+  color:var(--subtitle-color);
+}
+.kpi-value{
+  margin:2px 0 6px 0;
+  font-size:28px;
+  font-weight:700;
+  letter-spacing:0.2px;
+  text-align:center;
+  color:var(--value-color);
+}
+.kpi-unit{
+  font-size:.72em;
+  color:#9aa3af;
+  margin-left:6px;
+  vertical-align:baseline;
+}
+.kpi-sub{
+  margin:0;
+  font-size:12px;
+  color:var(--subtitle-color);
+  text-align:center;
+}
+.kpi-sub .kpi-delta.up{
+  color:#0b8f6f;
+  font-weight:600;
+}
+.kpi-sub .kpi-delta.down{
+  color:#c23934;
+  font-weight:600;
+}
+
+
+/* ================== REACTION AU CLIC ================== */
+.form-control:focus,
+.input-group .form-control:focus{
+  border-color:var(--brand-blue) !important;
+  outline:none !important;
+  box-shadow:0 0 0 2px var(--brand-blue-ring) !important;
+}
+.selectize-control.single .selectize-input.focus{
+  border-color:var(--brand-blue) !important;
+  box-shadow:0 0 0 2px var(--brand-blue-ring) !important;
+}
+.btn:focus,
+.btn:active:focus,
+.btn:focus-visible{
+  outline:none !important;
+  border-color:var(--brand-blue) !important;
+  box-shadow:0 0 0 2px var(--brand-blue-ring) !important;
+}
+/* Focus encadrés */
+.app .well:focus-within,
+.app .panel:focus-within,
+.app .box:focus-within,
+.app .card:focus-within{
+  outline:none !important;
+  border-color:var(--brand-blue) !important;
+  box-shadow:0 0 0 2px var(--brand-blue-ring) !important;
+}
+
+
+/* ================== ONGLETS ================== */
+.navbar-default{
+  background:var(--nav-bg);
+  border-color:var(--nav-sep);
+  box-shadow:0 1px 0 rgba(0,0,0,.03);
+   margin-bottom: 0 ;}
+
+.navbar-default .navbar-brand{
+  color:var(--nav-text);
+  font-weight:600;
+  letter-spacing:.1px;}
+  
+.navbar-default .navbar-nav>li>a{
+  color:var(--nav-text);
+  padding:12px 16px;
+  border-left:1px solid var(--nav-sep);
+  position:relative;}
+  
+.navbar-default .navbar-nav>li:first-child>a{ border-left:none; }
+
+.navbar-default .navbar-nav>li>a:hover{
+  color:var(--nav-text-hover);
+  background-color:rgba(13,110,253,.06);}
+  
+.navbar-default .navbar-nav>.active>a,
+
+.navbar-default .navbar-nav>.active>a:hover,
+
+.navbar-default .navbar-nav>.active>a:focus{
+  color:var(--nav-active);
+  background:var(--nav-bg);
+  font-weight:600;
+  box-shadow: inset 0 -3px 0 var(--nav-underline); /* soulignement actif */}
+  
+.navbar-default .navbar-nav>li>a:focus-visible{
+  outline:none;
+  box-shadow:inset 0 -3px 0 var(--nav-active);
+  border-radius:0;}
+
+/* ===== ADAPTATION POUR MOBILE ===== */
+@media (max-width:991px){
+  .navbar-default .navbar-nav>li>a{
+    border-left:0;
+    border-top:1px solid var(--nav-sep);}
+    
+  .navbar-default .navbar-nav>li:first-child>a{ border-top:none; }}
+
+
+/* ====== BANDEAU DU HAUT ====== */
+.app-header{
+  background: var(--card-bg);
+  margin-bottom: var(--header-gap); /* marge de sous le bandeau */
+  border-bottom: 4px solid var(--nav-underline); /* la ligne qui sépare le bandeau du reste */
+}
+.app-header .app-header-row{
+  display:flex;
+  align-items:center;
+}
+.app-header label{
+  color:var(--title-color);
+  font-weight:600;
+}
+.app-header .app-header-sep{
+  margin: 8px 0 0;
+  border:0;
+  border-top:1px solid rgba(255,255,255,.35);
+}
+
+
+/* ====== ENCADRE PRINCIPAL (INFOS PAYS) ====== */
+.app-header .kpi-card,
+.app-header .well,
+.app-header .panel,
+.app-header .box,
+.app-header .card{
+  background:#ffffff ;
+  border-color:rgba(255,255,255,.25) !important;
+  box-shadow:0 8px 18px rgba(0,0,0,.06) !important;
+  min-width:320px;
+  text-align:left;
+}
+.app-header .kpi-title{
+  color:var(--subtitle-color);
+}
+.app-header .kpi-value{
+  color:var(--value-color);
+}
+
+
+/* ================== Liens/nav (police héritée) ================== */
+.navbar-default,
+.navbar,
+.navbar a {
+  font-family: var(--app-font) !important;
+}
+
+
+/* ================== Plotly / DataTables (police héritée) ================== */
+.app .plotly,
+.app .modebar,
+.app .modebar * {
+  font-family: var(--app-font) !important;
+}
+.app .dataTables_wrapper,
+.app table.dataTable {
+  font-family: var(--app-font) !important;
+}
+
+
+/* ================== Footer ================== */
+.app-footer{
+  background: var(--brand-blue-ring);
+  color: #fff;
+  padding: 22px 16px;
+  min-height: 92px;
+
+  flex-shrink: 0;
+  width: 100%;
+
+  margin-top: 24px; /* <-- nouvel espace entre le contenu et le bandeau */
+}
+
+
+
+.app-footer .row{
+  display: flex;                 /* kill Bootstrap's left bias */
+  justify-content: center;       /* center the grid content */
+}
+
+.app-footer .col-xs-12{
+  display: flex;                 /* stack logo above text */
+  flex-direction: column;
+  align-items: center;           /* center horizontally */
+  gap: 10px;                     /* space between logo and text */
+  text-align: center;            /* center the paragraph lines */
+}
+
+.app-footer .brand{
+  order: -1;                     /* logo above text */
+}
+
+.app-footer .brand img{
+  display: block;
+  height: 56px;                  /* ajustable */
+  width: auto;
+}
+
+/* keep links white in the footer */
+.app-footer a{
+  color:#fff;
+  text-decoration:none;
+}
+.app-footer a:hover{
+  text-decoration:underline;
+}
+
+/* ===== STYLE DE L'ONGLET ABOUT ===== */
+.about-doc {
+  font-size: 15px;
+  line-height: 1.5;}
+
+/* Titres markdown */
+.about-doc h1,
+.about-doc h2,
+.about-doc h3 {
+  color: var(--title-color);
+  font-weight: 600;
+  margin-top: 1rem;
+  margin-bottom: .5rem;
+  line-height: 1.25;}
+
+.about-doc h1 {
+  font-size: 1.4rem;
+  border-bottom: 1px solid var(--card-bd);
+  padding-bottom: .4rem;
+  margin-top: 20; /* le tout premier titre en haut de carte peut rester serré */}
+
+.about-doc h2 {
+  font-size: 1.2rem;
+  border-bottom: 1px solid var(--card-bd);
+  padding-bottom: .3rem;
+}
+
+.about-doc h3 {
+  font-size: 1.05rem;
+  margin-top: 1rem;
+  margin-bottom: .5rem;
+}
+
+/* Paragraphes */
+.about-doc p {
+  margin: 0 0 .75rem 0;
+  color: var(--title-color);
+}
+
+/* Listes */
+.about-doc ul {
+  margin-top: 0;
+  margin-bottom: 1rem;
+  padding-left: 1.2rem;
+}
+.about-doc li {
+  margin-bottom: .4rem;
+}
+
+/* Tableaux markdown */
+.about-doc table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-bottom: 1rem;
+  font-size: 14px;
+}
+
+.about-doc th,
+.about-doc td {
+  border: 1px solid var(--card-bd);
+  padding: .5rem .6rem;
+  vertical-align: top;
+  line-height: 1.4;
+  color: var(--title-color);
+}
+
+.about-doc th {
+  background: #fff;
+  font-weight: 600;
+  white-space: nowrap;
+}
