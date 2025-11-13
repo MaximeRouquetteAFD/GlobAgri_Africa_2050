@@ -3,6 +3,8 @@
 ## Rebuild intelligent de `fact` depuis data/BDD_CLEAN.csv
 ## ==========================
 
+source("R/99_utils_plotly_theme.R")
+
 suppressPackageStartupMessages({
   library(fs)
   library(dplyr)

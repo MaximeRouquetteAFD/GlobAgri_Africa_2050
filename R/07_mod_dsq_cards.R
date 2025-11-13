@@ -75,6 +75,18 @@ mod_dsq_cards_server <- function(
       if (!is.null(cur) && identical(cur, scen)) selected(NULL) else selected(scen)
     })
     
+    # Pré-sélection au chargement : "Même diète" si dispo, sinon 1er scénario dispo
+    observe({
+      df <- cards_df()
+      if (is.null(selected()) && nrow(df)) {
+        # on compare sur la version caractère (évite les soucis de facteurs)
+        scen_char <- as.character(df$Scenario)
+        pref <- "Même diète"
+        if (!(pref %in% scen_char)) pref <- scen_char[1]
+        selected(pref)
+      }
+    })
+    
     output$cards_row <- renderUI({
       df <- cards_df()
       if (!nrow(df)) return(div(class="text-muted", "Aucune donnée disponible."))

@@ -1,9 +1,8 @@
-# R/11_mod_yield_hypothesis.R
+# R/04_mod_yield_hypothesis.R
 # -------------------------------------------------
 # Rendements (Element == "Yield") : comparaison 2018 vs 2050
-# Filtre par Region (pays sélectionné), sans notion de scénario.
 
-# R/11_mod_yield_hypothesis.R
+# R/04_mod_yield_hypothesis.R
 # -------------------------------------------------
 # Rendements (Element == "Yield") : comparaison 2018 vs 2050
 
@@ -19,14 +18,18 @@ mod_yield_ui <- function(id, wrap_in_card = TRUE){
     div(class = "u-actions",
         shiny::downloadLink(ns("dl_csv"),
                             label = tagList(shiny::icon("download"), "CSV"))),
-    uiOutput(ns("note"))  # note sous la barre d’actions
+    uiOutput(ns("note"))
   )
   
   if (isTRUE(wrap_in_card)) {
-    div(class = "u-card u-card--flat u-card--hover", content)
+    # ⬇️ ici : on utilise .card > .card-body au lieu de .u-card
+    div(class = "card",
+        div(class = "card-body", content))
   } else {
     content
-  }}
+  }
+}
+
 
 mod_yield_server <- function(id,
                              fact_reactive,  # reactive({ fact })
@@ -126,25 +129,28 @@ mod_yield_server <- function(id,
         hovertemplate = "<b>%{y}</b><br>Année: 2018<br>Rendement: %{x:.4f} t/ha<extra></extra>"
       )
       
-      p %>% plotly::layout(
+      p <- p %>% plotly::layout(
         barmode = "group",
         bargap  = 0.35,
         legend  = list(orientation = "v", traceorder = "reversed"),
         xaxis   = list(
           title    = "t/ha",
-          zeroline = TRUE,   # <-- supprime la ligne verticale à x=0
+          zeroline = TRUE,
           showline = FALSE
         ),
         yaxis   = list(
-          title = "",
+          title      = "",
           automargin = TRUE,
-          ticks = "outside",  # <-- ticks à l’extérieur (donne de l’air)
-          ticklen = 6,        # <-- petite “distance” visuelle
-          tickcolor = "rgba(0,0,0,0)",  # ticks invisibles (optionnel)
-          tickfont = list(size = 13)
+          ticks      = "outside",
+          ticklen    = 6,
+          tickcolor  = "rgba(0,0,0,0)",
+          tickfont   = list(size = 12) #taille de police des produits agricoles
         ),
-        margin  = list(l = 280, r = 40, t = 40, b = 48)  # <-- écarte encore les labels du bord
+        margin  = list(l = 200, r = 40, t = 40, b = 48)
       )
+      p <- plotly_theme(p, bg = "transparent", grid = "none")
+      p   
+      
     })
   })
 }

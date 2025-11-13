@@ -23,6 +23,7 @@
   /* Cards (design system) */
   --card-bg:#f8f9fa;
   --card-bd:#e5e5e5;
+  --card-inner:#ffffff;   /* couleur intérieure des cards */
   --card-radius:12px;
   --card-pad:16px;
   --card-shadow:0 4px 14px rgba(16,24,40,0.04);
@@ -100,11 +101,11 @@ h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--t
 
 /* ================== UTILITAIRES (Design System) ================== */
 
-/* ENCADRES DES GRAPHIQUES */
+/* ENCADRES DES CARDS */
 .app .u-card{
   display:block;
   width:100%;
-  background:var(--card-bg);           /*  couleur de fond de la carte */
+  background:var(--card-inner);           /*  couleur de fond de la carte */
   border:1px solid var(--card-bd);     /*  bordure grise claire */
   border-radius:var(--card-radius);    /*  arrondi des coins */
   padding:var(--card-pad);             /*  marge intérieure */
@@ -159,7 +160,7 @@ h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--t
 .app .u-actions a:hover{ text-decoration: underline; }
 
 
-/* ================== ENCADRÉS UNIFIÉS (hors header) ================== */
+/* ================== ENCADRÉS UNIFIÉS (hors header et cards) ================== */
 .app .well,
 .app .panel, .app .panel-default, .app .panel-body, .app .panel-heading,
 .app .box, .app .box-body, .app .box-header,
@@ -504,3 +505,24 @@ h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--t
   font-weight: 600;
   white-space: nowrap;
 }
+
+/* Separator */
+.rule{
+  --rule-width: 100%;
+  --rule-height: 2px;
+  --rule-color: #e5e7eb;
+  --rule-radius: 999px;
+  --rule-margin: 24px 0;
+
+  width: var(--rule-width);
+  height: var(--rule-height);
+  background: var(--rule-color);
+  border: 0;                 /* supprime la bordure par défaut */
+  margin: var(--rule-margin);
+  border-radius: var(--rule-radius);
+}
+.rule--brand  { --rule-color: var(--brand-blue); }
+.rule--thick  { --rule-height: 5px; }
+.rule--short  { --rule-width: 60%; margin-left:auto; margin-right:auto; }
+.rule--grad   { background: linear-gradient(90deg, var(--brand-blue), #06b6d4); }
+
