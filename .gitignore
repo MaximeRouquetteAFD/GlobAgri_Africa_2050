@@ -16,3 +16,7 @@ renv/staging/
 # Données lourdes à exclure
 data_raw/
 .rscignore
+
+# Local
+archives/
+test_save.R
