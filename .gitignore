@@ -3,20 +3,16 @@
 .Rhistory
 .RData
 .Ruserdata
-
 # Secrets
 .Renviron
-
 # Shiny deploy metadata
 rsconnect/
-
 # renv : on garde renv.lock, pas la librairie
 renv/library/
 renv/staging/
-
 # Archives / logs
 *.zip
 *.log
-
 # Données lourdes à exclure
 data_raw/
+.rscignore

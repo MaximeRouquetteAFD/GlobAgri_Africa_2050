@@ -1,18 +1,12 @@
-# Exclure du bundle shinyapps.io
-.Renviron
-.Rprofile
-.git/
+data_raw
+archives
 .Rhistory
-.RData
 .Rproj.user
-renv/staging
-notebooks/
-docs/
-
-# si tu n'en as pas besoin à l'exécution :
-*.csv
-*.zip
-*.parquet
-
-# (garde renv.lock !)
-
+GlobAfrique.Rproj
+.Renviron
+.Renviron.example
+.Rprofile
+afd_shiny_renv.zip
+deploy.R
+test_save.R
+README.md
