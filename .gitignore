@@ -3,8 +3,10 @@
 .Rhistory
 .RData
 .Ruserdata
+.Rprofile
 # Secrets
 .Renviron
+.Renviron.example
 # Shiny deploy metadata
 rsconnect/
 # renv : on garde renv.lock, pas la librairie
