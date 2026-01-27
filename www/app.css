@@ -1,29 +1,34 @@
+/* Ce module gère le style de l'application (police, coulers, encadrés...). 
+Les onglets "home page" et "about" ont leurs propres designs dans leurs modules
+respectifs */
+
+
 /* ===== Design tokens ===== */
 :root{
-  --app-font: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-
-  --title-color:#212529;
-  --subtitle-color:#6c757d;
-
+  --app-font: 'Segoe UI', 'Roboto', Helvetica, Arial, sans-serif;
+  --title-color:#FFFFFF;
+  --subtitle-color:#111A2E;
   --title-xxl:2rem; --title-xl:1.75rem; --title-lg:1.5rem;
   --title-md:1.25rem; --title-sm:1.125rem; --title-xs:1rem;
   --title-weight:600; --title-margin:0 0 8px 0;
 
-  /* Nav + focus */
+   /* Fond de la page */
+  --page-bg:#ffffff;
+
+  /* Couleurs pour les bandeaux */
   --nav-bg:#ffffff;
   --nav-text:#334155;
-  --nav-text-hover:#000091;
-  --nav-active:#000091;
+  --nav-text-hover:#111A2E;
+  --nav-active:#111A2E;
   --nav-sep:#e5e7eb;
-  --nav-underline:#000091;
-
-  --brand-blue:#000091;
-  --brand-blue-ring:rgba(0,0,145,.28);
+  --nav-underline:#111A2E;
+  --brand-blue:#c23934;
+  --brand-blue-ring:#c23934;
 
   /* Cards (design system) */
-  --card-bg:#f8f9fa;
-  --card-bd:#e5e5e5;
-  --card-inner:#ffffff;   /* couleur intérieure des cards */
+  --card-bg:#111A2E;   /* couleur intérieure des cadrs des graphiques */
+  --card-bd:#404757;   /* couleur de bordure des cards */
+  --card-inner:#ffffff;   /* couleur intérieure des encadrés informatifs */
   --card-radius:12px;
   --card-pad:16px;
   --card-shadow:0 4px 14px rgba(16,24,40,0.04);
@@ -31,42 +36,27 @@
   --value-color:#1f2937;
 
   /* Header spacing */
-  --header-gap:24px; /* mobile / défaut */
-}
+  --header-gap:24px;}
 
 /* desktop override for header gap */
 @media (min-width: 992px){
   :root{ --header-gap:32px; }
 }
 
-html {
-  min-height: 100%;
-}
+html {min-height: 100%;}
 
-body {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  margin: 0;
-}
+body {min-height: 100vh;display: flex;flex-direction: column; margin: 0;background: var(--page-bg);}
 
-.app-page {
-  flex: 1 0 auto;
-  display: block;
-}
+.app-page {flex: 1 0 auto;display: block;}
+.app-footer {flex-shrink: 0;width: 100%;}
 
-.app-footer {
-  flex-shrink: 0;
-  width: 100%;
-}
-
-
-/* ===== Titres / police ===== */
-body, h1,h2,h3,h4,h5,h6,
-.h1,.h2,.h3,.h4,.h5,.h6{
-  font-family:var(--app-font) !important;
-  color:var(--title-color);
-}
+/* Normalisation des titres et polices ===== */
+.app h1,
+.app h2,
+.app h3,
+.app h4,
+.app h5,
+.app h6 {color: var(--title-color);}
 h1,.h1{font-size:var(--title-xxl);font-weight:var(--title-weight);margin:var(--title-margin)}
 h2,.h2{font-size:var(--title-xl); font-weight:var(--title-weight);margin:var(--title-margin)}
 h3,.h3{font-size:var(--title-lg); font-weight:var(--title-weight);margin:var(--title-margin)}
@@ -76,27 +66,24 @@ h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--t
 
 
 /* ================== NORMALISATION GLOBALE ================== */
-.app, .app * {
-  box-sizing: border-box;
-  font-family: var(--app-font) !important;
-  color: var(--title-color);
-}
+.app, .app * {box-sizing: border-box;font-family: var(--app-font);}
 
-/* --- Ne pas écraser la police des icônes --- */
+.app h1.section-title{color: var(--subtitle-color) !important;}
+.app .text-muted,
+.app .text-muted em{color: #FFFFFF !important; opacity: 0.9;}  /* les petits messages en cas de non-affichage d'un scénario */
+
+/* Couleur de texte par défaut sur le conteneur seulement (héritage normal) */
+.app {color: var(--title-color);}
+
+/* --- HELPER pour ne pas écraser la police des icônes de tééléchargement --- */
 .app i.fa, .app i.fas, .app i.far, .app i.fab,
 .app span.fa, .app span.fas, .app span.far, .app span.fab,
 .app i[class^="fa-"], .app i[class*=" fa-"],
-.app span[class^="fa-"], .app span[class*=" fa-"]{
-  font-family: "Font Awesome 6 Free","Font Awesome 5 Free",
-               "Font Awesome 6 Brands","Font Awesome 5 Brands" !important;
-  font-weight: 900; /* solide par défaut */
-}
+.app span[class^="fa-"], .app span[class*=" fa-"]{ font-family: "Font Awesome 6 Free","Font Awesome 5 Free",
+               "Font Awesome 6 Brands","Font Awesome 5 Brands" !important; font-weight: 900; }
 
 /* Glyphicons (Bootstrap 3) pour compatibilité downloadLink etc. */
-.app .glyphicon{
-  font-family: "Glyphicons Halflings" !important;
-  font-weight: normal !important;
-}
+.app .glyphicon{font-family: "Glyphicons Halflings" !important; font-weight: normal !important;}
 
 
 /* ================== UTILITAIRES (Design System) ================== */
@@ -106,7 +93,7 @@ h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--t
   display:block;
   width:100%;
   background:var(--card-inner);           /*  couleur de fond de la carte */
-  border:1px solid var(--card-bd);     /*  bordure grise claire */
+  border:2px solid var(--card-bd);     /*  bordure grise claire */
   border-radius:var(--card-radius);    /*  arrondi des coins */
   padding:var(--card-pad);             /*  marge intérieure */
   box-shadow:var(--card-shadow);}     /*  ombre portée légère */
@@ -159,6 +146,19 @@ h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--t
 .app .u-actions a{display: inline-flex;align-items: center;gap: 6px;font-weight: 600;text-decoration: none;}
 .app .u-actions a:hover{ text-decoration: underline; }
 
+/* ===== Réduction spécifique pour les KPI de surfaces ===== */
+
+/* 1. Cartes un peu plus compactes dans surface-cards */
+.app .surface-cards .u-title{font-size:13px;}
+.app .surface-cards .u-value{font-size:24px;}
+.app .surface-cards .u-unit,
+.app .surface-cards .u-sub{font-size:11px;}
+
+/* 2. Réduire la largeur minimale des cartes pour pouvoir en afficher 5 côte à côte */
+.app .surface-cards .u-row > *{min-width:200px;}
+
+/* Optionnel : sur écrans larges, on force à rester sur une seule ligne */
+@media (min-width: 1200px){.app .surface-cards .u-row{flex-wrap: nowrap;}}
 
 /* ================== ENCADRÉS UNIFIÉS (hors header et cards) ================== */
 .app .well,
@@ -243,46 +243,29 @@ h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--t
   color:#0b8f6f;
   font-weight:600;
 }
-.kpi-sub .kpi-delta.down{
-  color:#c23934;
-  font-weight:600;
-}
+.kpi-sub .kpi-delta.down{color:#c23934;font-weight:600;}
 
 
 /* ================== REACTION AU CLIC ================== */
 .form-control:focus,
-.input-group .form-control:focus{
-  border-color:var(--brand-blue) !important;
-  outline:none !important;
-  box-shadow:0 0 0 2px var(--brand-blue-ring) !important;
-}
-.selectize-control.single .selectize-input.focus{
-  border-color:var(--brand-blue) !important;
-  box-shadow:0 0 0 2px var(--brand-blue-ring) !important;
-}
+.input-group .form-control:focus{border-color:var(--brand-blue) !important;outline:none !important;box-shadow:0 0 0 2px var(--brand-blue-ring) !important;}
+.selectize-control.single .selectize-input.focus{border-color:var(--brand-blue) !important;box-shadow:0 0 0 4px var(--brand-blue-ring) !important;}
 .btn:focus,
 .btn:active:focus,
-.btn:focus-visible{
-  outline:none !important;
-  border-color:var(--brand-blue) !important;
-  box-shadow:0 0 0 2px var(--brand-blue-ring) !important;
-}
+.btn:focus-visible{outline:none !important;border-color:var(--brand-blue) !important;box-shadow:0 0 0 2px var(--brand-blue-ring) !important;}
+
 /* Focus encadrés */
 .app .well:focus-within,
 .app .panel:focus-within,
 .app .box:focus-within,
-.app .card:focus-within{
-  outline:none !important;
-  border-color:var(--brand-blue) !important;
-  box-shadow:0 0 0 2px var(--brand-blue-ring) !important;
-}
+.app .card:focus-within{outline:none !important;border-color:var(--brand-blue) !important;box-shadow:0 0 0 2px var(--brand-blue-ring) !important;}
 
 
 /* ================== ONGLETS ================== */
 .navbar-default{
   background:var(--nav-bg);
   border-color:var(--nav-sep);
-  box-shadow:0 1px 0 rgba(0,0,0,.03);
+  box-shadow:0 1px 0 #F6F7FB;
    margin-bottom: 0 ;}
 
 .navbar-default .navbar-brand{
@@ -300,7 +283,7 @@ h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--t
 
 .navbar-default .navbar-nav>li>a:hover{
   color:var(--nav-text-hover);
-  background-color:rgba(13,110,253,.06);}
+  background-color:#F6F7FB;}
   
 .navbar-default .navbar-nav>.active>a,
 
@@ -354,25 +337,19 @@ h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--t
 .app-header .box,
 .app-header .card{
   background:#ffffff ;
-  border-color:rgba(255,255,255,.25) !important;
+  border:2px solid; color: #888c96 !important;
   box-shadow:0 8px 18px rgba(0,0,0,.06) !important;
-  min-width:320px;
+  min-width:450px;
   text-align:left;
 }
-.app-header .kpi-title{
-  color:var(--subtitle-color);
-}
-.app-header .kpi-value{
-  color:var(--value-color);
-}
+.app-header .kpi-title{color:var(--subtitle-color);}
+.app-header .kpi-value{color:var(--subtitle-color);}
 
 
 /* ================== Liens/nav (police héritée) ================== */
 .navbar-default,
 .navbar,
-.navbar a {
-  font-family: var(--app-font) !important;
-}
+.navbar a {font-family: var(--app-font) !important;}
 
 
 /* ================== Plotly / DataTables (police héritée) ================== */
@@ -387,142 +364,34 @@ h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--t
 }
 
 
-/* ================== Footer ================== */
-.app-footer{
-  background: var(--brand-blue-ring);
-  color: #fff;
-  padding: 22px 16px;
-  min-height: 92px;
-
-  flex-shrink: 0;
-  width: 100%;
-
-  margin-top: 24px; /* <-- nouvel espace entre le contenu et le bandeau */
-}
-
-
-
-.app-footer .row{
-  display: flex;                 /* kill Bootstrap's left bias */
-  justify-content: center;       /* center the grid content */
-}
-
-.app-footer .col-xs-12{
-  display: flex;                 /* stack logo above text */
-  flex-direction: column;
-  align-items: center;           /* center horizontally */
-  gap: 10px;                     /* space between logo and text */
-  text-align: center;            /* center the paragraph lines */
-}
-
-.app-footer .brand{
-  order: -1;                     /* logo above text */
-}
-
-.app-footer .brand img{
-  display: block;
-  height: 56px;                  /* ajustable */
-  width: auto;
-}
+/* ================== BANDEAU DU BAS ================== */
+.app-footer{background: var(--page-bg);color: #fff;padding: 22px 16px;min-height: 92px;flex-shrink: 0;width: 100%; margin-top: 24px;}
+.app-footer .row{display: flex; justify-content: center;}
+.app-footer .col-xs-12{display: flex;flex-direction: column;align-items: center;gap: 10px;text-align: center;}
+.app-footer .brand{order: -1;}
+.app-footer .brand img{display: block;height: 56px;width: auto;}
 
 /* keep links white in the footer */
-.app-footer a{
-  color:#fff;
-  text-decoration:none;
-}
-.app-footer a:hover{
-  text-decoration:underline;
-}
+.app-footer a{color:#fff;text-decoration:none;}
+.app-footer a:hover{text-decoration:underline;}
 
-/* ===== STYLE DE L'ONGLET ABOUT ===== */
-.about-doc {
-  font-size: 15px;
-  line-height: 1.5;}
 
-/* Titres markdown */
-.about-doc h1,
-.about-doc h2,
-.about-doc h3 {
-  color: var(--title-color);
-  font-weight: 600;
-  margin-top: 1rem;
-  margin-bottom: .5rem;
-  line-height: 1.25;}
-
-.about-doc h1 {
-  font-size: 1.4rem;
-  border-bottom: 1px solid var(--card-bd);
-  padding-bottom: .4rem;
-  margin-top: 20; /* le tout premier titre en haut de carte peut rester serré */}
-
-.about-doc h2 {
-  font-size: 1.2rem;
-  border-bottom: 1px solid var(--card-bd);
-  padding-bottom: .3rem;
-}
-
-.about-doc h3 {
-  font-size: 1.05rem;
-  margin-top: 1rem;
-  margin-bottom: .5rem;
-}
-
-/* Paragraphes */
-.about-doc p {
-  margin: 0 0 .75rem 0;
-  color: var(--title-color);
-}
-
-/* Listes */
-.about-doc ul {
-  margin-top: 0;
-  margin-bottom: 1rem;
-  padding-left: 1.2rem;
-}
-.about-doc li {
-  margin-bottom: .4rem;
-}
-
-/* Tableaux markdown */
-.about-doc table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-bottom: 1rem;
-  font-size: 14px;
-}
-
-.about-doc th,
-.about-doc td {
-  border: 1px solid var(--card-bd);
-  padding: .5rem .6rem;
-  vertical-align: top;
-  line-height: 1.4;
-  color: var(--title-color);
-}
-
-.about-doc th {
-  background: #fff;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-/* Separator */
+/* Format de la ligne de séparation entre les parties */
 .rule{
   --rule-width: 100%;
   --rule-height: 2px;
-  --rule-color: #e5e7eb;
+  --rule-color: #111A2E;
   --rule-radius: 999px;
   --rule-margin: 24px 0;
 
-  width: var(--rule-width);
-  height: var(--rule-height);
-  background: var(--rule-color);
-  border: 0;                 /* supprime la bordure par défaut */
-  margin: var(--rule-margin);
-  border-radius: var(--rule-radius);
-}
-.rule--brand  { --rule-color: var(--brand-blue); }
-.rule--thick  { --rule-height: 5px; }
-.rule--short  { --rule-width: 60%; margin-left:auto; margin-right:auto; }
-.rule--grad   { background: linear-gradient(90deg, var(--brand-blue), #06b6d4); }
+  width: var(--rule-width); height: var(--rule-height); background: var(--rule-color); border: 0; margin: var(--rule-margin); border-radius: var(--rule-radius);}
+
+
+/* Format des encadrés explicatifs avant les graphiques */
+
+.app .diet-cards{ margin-top: 10px; }
+.app .diet-card{ padding: 14px 16px; }
+.app .diet-card-title{font-size: 18px; font-weight: 600; margin: 0 0 6px 0; color: var( --subtitle-color); text-align: center;}
+.app .diet-card-text{font-size: 12px; line-height: 1.4; color: var( --subtitle-color);}
+
 

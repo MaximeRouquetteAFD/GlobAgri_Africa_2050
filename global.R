@@ -1,6 +1,7 @@
 ## ==========================
 ## global.R — AFD Valorisation
-## Rebuild intelligent de `fact` depuis data/BDD_CLEAN.csv
+## Rebuild intelligent de `fact` depuis data_raw/BDD_CLEAN.csv
+## Rebuild ONLY if build inputs changed (hash), not based on mtime
 ## ==========================
 
 source("R/99_utils_plotly_theme.R")
@@ -9,7 +10,7 @@ suppressPackageStartupMessages({
   library(fs)
   library(dplyr)
   library(stringr)
-  library(digest)   
+  library(digest)
 })
 
 ## --- Paramètres projet
@@ -17,49 +18,121 @@ data_dir  <- "data"
 stopifnot(dir_exists(data_dir))
 
 fact_rds  <- fs::path(data_dir, "fact_results_tidy.rds")
-meta_rds  <- fs::path(data_dir, "fact_build_meta.rds")   
-src_csv   <- c(fs::path(data_dir, "BDD_CLEAN.csv"))   
+meta_rds  <- fs::path(data_dir, "fact_build_meta.rds")
 
-## --- Aide: détection changement
-needs_rebuild_time <- function(src_paths, rds_path){
-  if (!file_exists(rds_path)) return(TRUE)
-  if (!all(file_exists(src_paths))) {
-    stop("Source(s) manquante(s) : ", paste(src_paths[!file_exists(src_paths)], collapse=", "))
-  }
-  rds_time <- file_info(rds_path)$modification_time
-  any(file_info(src_paths)$modification_time > rds_time)
+src_csv <- fs::path("data_raw", "BDD_CLEAN.csv")
+src_available <- all(file_exists(src_csv))
+
+## --- Scripts qui impactent la construction des RDS
+## --- Inputs qui DOIVENT déclencher un rebuild s'ils changent
+build_inputs <- c(
+  src_csv,
+  "R/00_make_clean_tables.R",
+  "R/00_config_scenarios.R"
+)
+
+## --- Hashing robuste (clés = chemins absolus canonisés)
+canon_path <- function(p) normalizePath(p, winslash = "/", mustWork = FALSE)
+hash_file  <- function(p) digest(file = p, algo = "xxhash64")
+
+hashes_current <- function(paths){
+  # paths supposés existants
+  p_abs <- vapply(paths, canon_path, character(1))
+  ord   <- order(p_abs)
+  p_abs <- p_abs[ord]
+  setNames(vapply(p_abs, hash_file, character(1)), p_abs)
 }
-hash_file <- function(p) digest(file = p, algo = "xxhash64")
-hashes_equal <- function(src_paths, meta_path){
-  if (!file_exists(meta_path)) return(FALSE)
+
+hashes_equal <- function(paths, meta_path){
+  if (!all(fs::file_exists(paths))) return(TRUE)      # pas de rebuild si on ne peut pas vérifier
+  if (!fs::file_exists(meta_path)) return(FALSE)
+  
   meta <- readRDS(meta_path)
-  all(vapply(src_paths, function(p) identical(meta[[basename(p)]], hash_file(p)), logical(1)))
+  cur  <- hashes_current(paths)
+  
+  identical(meta, cur)
+}
+
+hash_diff_report <- function(paths, meta_path){
+  if (!all(fs::file_exists(paths))) {
+    message("► HASH REPORT: some build inputs missing; skipping report.")
+    return(invisible(NULL))
+  }
+  cur <- hashes_current(paths)
+  
+  if (!fs::file_exists(meta_path)) {
+    message("► HASH REPORT: meta_rds missing -> rebuild expected.")
+    print(data.frame(file = names(cur), current = unname(cur), stringsAsFactors = FALSE))
+    return(invisible(NULL))
+  }
+  
+  meta <- readRDS(meta_path)
+  
+  all_files <- sort(unique(c(names(meta), names(cur))))
+  df <- data.frame(
+    file    = all_files,
+    meta    = unname(meta[all_files]),
+    current = unname(cur[all_files]),
+    same    = unname(meta[all_files] == cur[all_files]),
+    exists  = fs::file_exists(all_files),
+    stringsAsFactors = FALSE
+  )
+  
+  # NA (fichiers absents d’un côté) => same = FALSE
+  df$same[is.na(df$same)] <- FALSE
+  
+  message("► HASH REPORT (mismatches only):")
+  print(df[df$same == FALSE, ], row.names = FALSE)
+  
+  invisible(df)
 }
 
 ## --- Forcer manuellement (option R ou variable d'environnement)
 force_rebuild <- isTRUE(getOption("AFD_FORCE_REBUILD")) ||
   identical(Sys.getenv("AFD_FORCE_REBUILD"), "1")
 
-## --- Décider si rebuild
-do_rebuild <- force_rebuild || needs_rebuild_time(src_csv, fact_rds) || !hashes_equal(src_csv, meta_rds)
+message("► AFD_FORCE_REBUILD option = ", getOption("AFD_FORCE_REBUILD"),
+        " | env = '", Sys.getenv("AFD_FORCE_REBUILD"), "'",
+        " | force_rebuild = ", force_rebuild)
+
+## --- Cas bloquant
+if (!fs::file_exists(fact_rds) && !src_available) {
+  stop("RDS absent (", fact_rds, ") et source CSV absente (", src_csv,
+       "). Impossible de (re)construire.")
+}
+
+## --- Décision rebuild (HASH ONLY)
+hash_ok <- hashes_equal(build_inputs, meta_rds)
+
+message("► CHECK: src_available=", src_available,
+        " | fact_rds_exists=", fs::file_exists(fact_rds),
+        " | hash_ok=", hash_ok)
+
+do_rebuild <- if (isTRUE(force_rebuild)) {
+  src_available
+} else {
+  src_available && (!fs::file_exists(fact_rds) || !hash_ok)
+}
 
 if (do_rebuild) {
-  message("► Build ‘fact’ (motif : ",
-          if (force_rebuild) "FORCE"
-          else if (!file_exists(fact_rds)) "RDS absent"
-          else if (!hashes_equal(src_csv, meta_rds)) "hash différent"
-          else "sources plus récentes",
-          ") …")
+  # Diagnostic précis: QUEL fichier bouge ?
+  hash_diff_report(build_inputs, meta_rds)
   
-  source("R/01_make_clean_tables.R", local = TRUE)
+  message("► BUILD START: ", Sys.time())
+  message("  global.R path = ", normalizePath("global.R", mustWork = FALSE))
+  
+  source("R/00_make_clean_tables.R", local = TRUE)
   make_clean_tables(data_dir = data_dir, overwrite = TRUE)
   
-  # met à jour les hash pour traçabilité
-  hashes <- setNames(lapply(src_csv, hash_file), basename(src_csv))
-  saveRDS(hashes, meta_rds)
+  # Sauvegarde meta stable (chemins canonisés)
+  meta <- hashes_current(build_inputs)
+  saveRDS(meta, meta_rds)
+  
+  message("► BUILD END: ", Sys.time())
 } else {
-  message("► ‘fact’ à jour — pas de rebuild (", fact_rds, ")")
+  message("► SKIP BUILD (do_rebuild=FALSE)")
 }
+
 
 ## --- Chargement de la table propre
 fact <- readRDS(fact_rds)
@@ -77,6 +150,7 @@ if (requireNamespace("ragg", quietly = TRUE)) {
 }
 
 ## --- Petit log utile (optionnel)
-message("► fact: ", nrow(fact), " lignes ; pays: ", length(unique(fact$Region)),
-        " ; scénarios: ", length(unique(fact$Scenario)))
-
+message(
+  "► fact: ", nrow(fact), " lignes ; pays: ", length(unique(fact$Region)),
+  " ; scénarios: ", length(unique(fact$Scenario))
+)

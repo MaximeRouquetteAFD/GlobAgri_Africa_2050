@@ -26,8 +26,8 @@ load_data <- function(
   stopifnot(fs::dir_exists(data_dir))
   
   # chemins
-  bdd_path  <- fs::path(data_dir, "BDD_CLEAN.csv")
-  dimc_path <- fs::path(data_dir, "dim_country.csv")
+  bdd_path  <- fs::path("data_raw", "BDD_CLEAN.csv")
+  dimc_path <- fs::path("data_raw", "dim_country.csv")
   
   if (!fs::file_exists(bdd_path)) {
     stop("Fichier introuvable : ", bdd_path)

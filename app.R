@@ -11,21 +11,13 @@ library(readr); library(tibble)
 ht <- getOption("help_type")
 if (length(ht) != 1L || !(ht %in% c("html","text"))) options(help_type = "html")
 
-# ---- Chargements projet (doit fournir 'fact' + constantes, ex. ENERGY_ELEMENT)
+# global.R contient tes data (fact) + constantes + config
 source("global.R", local = FALSE, chdir = TRUE)
-source("R/02_utils_palette.R")
-source("R/03_mod_energy_items.R")
-source("R/04_mod_yield_hypothesis.R")
-source("R/05_mod_area_stacked.R")
-source("R/07_mod_dsq_cards.R")
-source("R/08_mod_energy_sankey.R")
-source("R/10_mod_surface_cards.R")
-source("R/12_mod_harvested_stacked.R")
-source("R/13_mod_livestock_area_stacked.R")
-source("R/14_mod_livestock_stocks.R")
-source("R/15_mod_ls_sankey_tonnes.R")
-source("R/16_mod_protein_treemap.R")
 
+# source tous les fichiers R/ dans l'ordre alphabétique
+r_files <- list.files("R", pattern = "\\.R$", full.names = TRUE)
+r_files <- sort(r_files)
+invisible(lapply(r_files, source, local = FALSE))
 
 # ---- Helpers format
 if (!exists("%||%", mode = "function")) `%||%` <- function(a, b) if (is.null(a)) b else a
@@ -36,6 +28,28 @@ fmt1 <- function(x) if (is.na(x)) "—" else formatC(x, format = "f", digits = 1
 if (!exists("default_country")) default_country <- sort(unique(fact$Region))[1]
 
 # ===================================================================
+# IMPORTANT — NORMALISATION DATA : scénarios EXTRA (label -> code)
+# Objectif: que fact$Scenario matche les CODES (ex: "Prob-S-limitee")
+# partout (modules, helper global, intersections, etc.)
+# ===================================================================
+
+# Fallback si scenario_code n'est pas encore défini par tes sources
+if (!exists("scenario_code", mode = "function")) {
+  scenario_code <- function(x) stringr::str_squish(as.character(x))
+}
+
+# map label UI (présent dans tes données actuellement) -> code data
+# ex: "Avec contrainte" -> "Prob-S-limitee"
+EXTRA_LABEL_TO_CODE <- setNames(unname(SCENARIOS_EXTRA_CHOICES), names(SCENARIOS_EXTRA_CHOICES))
+
+# recodage UNIQUE sur fact (ainsi tous les modules voient la même chose)
+fact <- fact %>%
+  dplyr::mutate(
+    Scenario = scenario_code(Scenario),
+    Scenario = dplyr::recode(Scenario, !!!EXTRA_LABEL_TO_CODE, .default = Scenario)
+  )
+
+# ===================================================================
 # Données manuelles pour KPI
 # ===================================================================
 pop2050_dict <- c(
@@ -43,27 +57,37 @@ pop2050_dict <- c(
   "Tanzania"=129621102.5,"Nigeria"=359185955.5,"Tunisia"=13145141,"Algeria"=59565554.5,"Angola"=74295394.5,
   "Benin"=24433809.5,"Botswana"=3437430,"Burkina Faso"=37304383,"Cameroon"=51096317,"Chad"=38857686,"Egypt"=161630192,
   "Gambia"=4301895.5,"Ghana"=50553047,"Guinea"=23404583.5,"Kenya"=83593239,"Mali"=46154079,"Mozambique"=63530951.5,
-  "Namibia"=4512300.5,"Niger"=52513876,"North and South Sudan"=103548356,"Rwanda"=22707910,"Zambia"=38083385.5,"Zimbabwe"=25866384.5
-)
+  "Namibia"=4512300.5,"Niger"=52513876,"North and South Sudan"=103548356,"Rwanda"=22707910,"Zambia"=38083385.5,"Zimbabwe"=25866384.5,
+  "Burundi"=24131720,"Central African Republic"=10616752.5,"Comoros"=1307558,"Congo"=11006471.5,"Djibouti"=1530539.5,"Eswatini"=1505331,"Gabon"=4084533,
+  "Guinea-Bissau"=3438607.5,"Lesotho"=2993076.5,"Liberia"=8910530,"Libya"=9260605.5,"Malawi"=37361682.5,"Mauritania"=9415598,"Sierra Leone"=12948325,
+  "Togo"=15584777.5,"Uganda"=85431202, "Democratic Republic of the Congo"=218246072, "United Republic of Tanzania"=129621102.5 )
+
 pop2018_dict <- c(
   "Senegal"=15914498.5,"Ivory Coast"=27464172.5,"Ethiopia"=112664152.5,"Morocco"=35839760,"South Africa"=58613000.5,
   "Tanzania"=57437144.5,"Nigeria"=204938754.5,"Tunisia"=11765514.5,"Algeria"=42505035,"Angola"=31297155,"Benin"=12383347.5,
   "Botswana"=2299141,"Burkina Faso"=20438288,"Cameroon"=24806383,"Chad"=16156530.5,"Egypt"=105682093.5,"Gambia"=2399632,
   "Ghana"=30637584.5,"Guinea"=12704774,"Kenya"=50207107.5,"Mali"=20442029.5,"Mozambique"=29018644.5,"Namibia"=2577326.5,
-  "Niger"=22188069,"North and South Sudan"=54353573,"Rwanda"=12487996,"Zambia"=17973569,"Zimbabwe"=15034452
-)
+  "Niger"=22188069,"North and South Sudan"=54353573,"Rwanda"=12487996,"Zambia"=17973569,"Zimbabwe"=15034452,
+  "Burundi"=11859446,"Central African Republic"=4878657,"Comoros"=771590,"Congo"=5483118,"Djibouti"=1071882,"Eswatini"=1168929.5,"Gabon"=2212317.5,
+  "Guinea-Bissau"=1922167.5,"Lesotho"=2183603,"Liberia"=4944726,"Libya"=6849054.5,"Malawi"=18528081,"Mauritania"=4337685,"Sierra Leone"=7554563,
+  "Togo"=8258778,"Uganda"=41565831, "Democratic Republic of the Congo"=90047643.5 , "United Republic of Tanzania"=57437144.5 )
+
 area_km2_dict <- c(
   "Senegal"=196710,"Ivory Coast"=322460,"Ethiopia"=1136240,"Morocco"=446550,"South Africa"=1219090,"Tanzania"=947300,
   "Nigeria"=923770,"Tunisia"=163610,"Algeria"=2381741,"Angola"=1246700,"Benin"=114760,"Botswana"=581730,"Burkina Faso"=274200,
   "Cameroon"=475440,"Chad"=1284000,"Egypt"=1001450,"Gambia"=11300,"Ghana"=238533,"Guinea"=245860,"Kenya"=580370,"Mali"=1240190,
-  "Mozambique"=799380,"Namibia"=824290,"Niger"=1267000,"North and South Sudan"=2524883,"Rwanda"=26340,"Zambia"=752610,"Zimbabwe"=390760
-)
+  "Mozambique"=799380,"Namibia"=824290,"Niger"=1267000,"North and South Sudan"=2524883,"Rwanda"=26340,"Zambia"=752610,"Zimbabwe"=390760,
+  "Burundi"=27830,"Central African Republic"=622980,"Comoros"=1861,"Congo"=342000,"Djibouti"=23200,"Eswatini"=17360,"Gabon"=267670,
+  "Guinea-Bissau"=36130,"Lesotho"=30360,"Liberia"=111370,"Libya"=1759540,"Malawi"=118480,"Mauritania"=1030700,"Sierra Leone"=72300,
+  "Togo"=56790,"Uganda"=241550, "Democratic Republic of the Congo"=2344860, "United Republic of Tanzania"=947300 )
+
 flag_iso2_dict <- c(
   "Senegal"="sn","Ivory Coast"="ci","Ethiopia"="et","Morocco"="ma","South Africa"="za","Tanzania"="tz","Nigeria"="ng","Tunisia"="tn",
   "Algeria"="dz","Angola"="ao","Benin"="bj","Botswana"="bw","Burkina Faso"="bf","Cameroon"="cm","Chad"="td","Egypt"="eg","Gambia"="gm",
   "Ghana"="gh","Guinea"="gn","Kenya"="ke","Mali"="ml","Mozambique"="mz","Namibia"="na","Niger"="ne","North and South Sudan"=NA_character_,
-  "Rwanda"="rw","Zambia"="zm","Zimbabwe"="zw"
-)
+  "Rwanda"="rw","Zambia"="zm","Zimbabwe"="zw","Burundi"="bi","Central African Republic"="cf","Comoros"="km","Congo"="cg","Djibouti"="dj",
+  "Eswatini"="sz","Gabon"="ga","Guinea-Bissau"="gw","Lesotho"="ls","Liberia"="lr","Libya"="ly","Malawi"="mw","Mauritania"="mr","Sierra Leone"="sl",
+  "Togo"="tg","Uganda"="ug", "Democratic Republic of the Congo"="cd" , "United Republic of Tanzania"="tz" )
 
 # Contrôles compacts
 for (chk in list(
@@ -83,114 +107,208 @@ ui <- tagList(
   div(
     class = "app-page",
     navbarPage(
-      title = "AFD x GlobAgri",
+      title = "GlobAgri Africa 2050",
       id    = "main_tabs",
       
       header = tagList(
         tags$head(includeCSS("www/app.css")),
         tags$script(HTML("document.body.classList.add('app');")),
         conditionalPanel(
-          condition = "input.main_tabs !== 'about'",
+          condition = "input.main_tabs !== 'Home page' && input.main_tabs !== 'About'",
           div(
             class = "app-header",
             div(class = "container-fluid",
-                div(class = "row app-header-row",
-                    div(class = "col-xs-12 col-sm-4",
-                        selectInput(
-                          "country_global", "Pays",
-                          choices  = sort(unique(fact$Region)),
-                          selected = default_country
-                        )
+                div(
+                  class = "row app-header-row",
+                  
+                  # Colonne gauche : 2 selecteurs l'un sous l'autre
+                  div(
+                    class = "col-xs-12 col-sm-4",
+                    tags$div(style = "height:10px;"),
+                    selectInput(
+                      "country_global", "Select a country/region",
+                      choices  = sort(unique(fact$Region)),
+                      selected = default_country
                     ),
-                    div(class = "col-xs-12 col-sm-4 text-right",
-                        uiOutput("pop2050_card")
+                    tags$div(style = "height:10px;"),  # petit espace
+                    
+                    selectInput(
+                      "extra_scenario_global", "Select a scenario",
+                      choices  = SCENARIOS_EXTRA_CHOICES,
+                      selected = unname(SCENARIOS_EXTRA_CHOICES)[1]
                     )
-                ))
+                  ),
+                  
+                  # Colonne centre : KPI au milieu
+                  div(
+                    class = "col-xs-12 col-sm-4",
+                    div(
+                      style = "display:flex; justify-content:center;",
+                      uiOutput("pop2050_card")
+                    )
+                  ),
+                  
+                  # Colonne droite : vide (sert à centrer proprement)
+                  div(class = "col-xs-12 col-sm-4")
+                )
+                ,
+                uiOutput("extra_scenario_banner")
+            )
           )
         )
       ),
       
-      # --------- ONGLET 1 : HYPOTHESES ----------
+      # --------- ONGLET 1 : Home page ----------
+      tabPanel(
+        "Home page",
+        htmltools::includeHTML("www/home_page.html")
+      ),
+      
+      # --------- ONGLET 2 : HYPOTHESES ----------
       tabPanel(
         title = "Assumptions",
-        div(class = "container-fluid",
-            mod_energy_items_ui("energy_hypo"),
-            tags$hr(class = "rule"),
-            mod_yield_ui("yield_hypo")
+        div(
+          class = "container-fluid",
+          h1(class = "section-title", "DIETS PROJECTIONS IN 2050"),
+          tags$br(),
+          mod_energy_items_ui("energy_hypo"),
+          conditionalPanel(
+            condition = "input['energy_hypo-show_protein_share']",
+            mod_protein_treemap_ui("protein_treemap")
+          ),
+          tags$br(),
+          tags$hr(class = "rule"),
+          h1(class = "section-title", "CROPS AND LIVESTOCK PRODUCTIVITY ASSUMPTIONS"),
+          tags$br(),
+          mod_yield_ui("yield_hypo")
         )
       ),
       
-      # --------- ONGLET 2 : CROPS ----------
+      # --------- ONGLET 3 : Résumé ----------
+      tabPanel(
+        title = "Big picture",
+        div(class = "container-fluid",
+            mainPanel(width = 12,
+                      h1(class = "section-title", "LAND USE"),
+                      tags$br(),
+                      div(class = "card",
+                          div(class = "card-body",
+                              mod_area_stacked_ui("area", wrap="none")
+                          )),
+                      tags$br(),
+                      tags$hr(class = "rule"),
+                      h1(class = "section-title", "ENERGY FLOW"),
+                      tags$br(),
+                      div(class = "card",
+                          div(class = "card-body",
+                              mod_dsq_cards_ui("dsq_cards"),
+                              mod_energy_sankey_ui("sankey")
+                          ))),
+        )
+      ),
+      
+      # --------- ONGLET 4 : CROPS ----------
       tabPanel(
         "Crops",
         div(class = "container-fluid",
-            mod_harvested_stacked_ui("crops_harv")
+            h1(class = "section-title", "LAND USE"),
+            tags$br(),
+            mod_harvested_stacked_ui("harv_stack"),
+            tags$br(),
+            mod_harvested_trend_ui("harv_trend"),
+            tags$br(),
+            tags$hr(class = "rule"),
+            h1(class = "section-title", "PRODUCTION AND QUANTITATIVE FLOWS"),
+            tags$br(),
+            mod_crop_structure_ui("crop_structure"),
+            tags$br(),
+            mod_crop_sankey_tonnes_ui("crop_sankey")
         )
       ),
       
-      # --------- ONGLET 3 : LIVESTOCK ----------
+      # --------- ONGLET 5 : LIVESTOCK ----------
       tabPanel(
         title = "Livestock",
         div(class = "container-fluid",
-            mod_livestock_stocks_ui("livestock_stocks"),
-            tags$hr(class = "rule"),            
+            h1(class = "section-title", "LAND USE"),
+            tags$br(),
             mod_livestock_area_stacked_ui("livestock_area"),
+            tags$br(),
             tags$hr(class = "rule"),
+            h1(class = "section-title", "EVOLUTION OF STOCKS"),
+            tags$br(),
+            mod_livestock_stocks_ui("livestock_stocks"),
+            tags$br(),
+            mod_livestock_system_stocks_ui("livestock_system_stocks"),
+            tags$br(),
+            tags$hr(class = "rule"),
+            h1(class = "section-title", "LIVESTOCK EFFICENCY"),
+            tags$br(),
+            mod_animal_efficiency_ui("animal_eff"),
+            tags$br(),
+            tags$hr(class = "rule"),
+            h1(class = "section-title", "PRODUCTION AND USES"),
+            tags$br(),
+            mod_livestock_energy_share_ui("energy_share"),
+            tags$br(),
             mod_ls_sankey_tonnes_ui("ls_sankey_tonnes")
         )
       ),
       
-      
-      # --------- ONGLET 4 : Trade and dependency ----------
+      # --------- ONGLET 6 : FOREST ----------
       tabPanel(
-        title = "Trade and dependency",
-        div(class = "app container-fluid",
-            mod_protein_treemap_ui("protein_treemap"),
-            tags$hr(class = "rule")
+        title = "Forest",
+        div(class = "container-fluid",
+            h1(class = "section-title", "LAND USE"),
+            tags$br(),
+            mod_forest_stacked_ui("forest_only", height = "360px", wrap = "card"),
+            tags$br(),
+            mod_forest_share100_ui("forest_share100")
         )
       ),
       
-      # --------- ONGLET 5 : Emissions ----------
+      # --------- ONGLET 7 : Trade and dependency ----------
+      tabPanel(
+        title = "Trade and dependency",
+        div(
+          class = "container-fluid",
+          h1(class = "section-title", "EMISSIONS QUANTITIES"),
+          tags$br(),
+          mod_import_quantity_ui("trade_imports"),
+          tags$br(),
+          mod_energy_balance_ui("trade_balance"),
+          tags$br(),
+          mod_dependancy_import_food_items_ui("dep_import_food")
+        )
+      ),
+      
+      # --------- ONGLET 8 : Emissions ----------
       tabPanel(
         title = "Emissions",
         value = "commerce",
         div(class = "container-fluid",
-            h3(class = "app-title app-title--lg", "Commerce extérieur et dépendance"),
-            p(class = "app-subtitle", "Contenu à venir.")
+            h1(class = "section-title", "ENERGY"),
+            tags$br(),
+            mod_land_use_change_ui("luc"),
+            tags$br(),
+            mod_emissions_stacked_ui("emiss_stack")
         )
       ),
       
-      # --------- ONGLET 6 : SYNTHÈSE ----------
-      tabPanel(
-        title = "Synthèse",
-        div(class = "container-fluid",
-            mainPanel(width = 12,
-                      div(class = "card",  
-                      div(class = "card-body",
-                          
-                      mod_area_stacked_ui("area",wrap="none"),
-                      mod_surface_cards_ui("surface_kpis")
-                      )),
-                      tags$hr(class = "rule"),
-                      div(class = "card",
-                          div(class = "card-body",
-                      mod_energy_sankey_ui("sankey"),
-                      mod_dsq_cards_ui("dsq_cards")))),
-        )),
-      
-      # --------- ONGLET 7 : À PROPOS ----------
+      # --------- ONGLET 9 : ABOUT ----------
       tabPanel(
         title = "About",
-        value = "about",
+        value = "About",
         div(class = "container-fluid",
-            div(class = "about-doc", includeMarkdown("www/about.md")),
+            shiny::includeHTML("www/about.html"),
             tags$hr(class = "rule"),
-            # Bloc téléchargements
             div(class = "container-fluid",
-                    h1("Download all the data"),
-                    div(class = "u-actions",
-                        downloadLink("dl_fact_rds", label = tagList(icon("download"), "Data (.rds)")),
-                        downloadLink("dl_fact_csv", label = tagList(icon("download"), "Data (.csv)")))),
+                h1("Download the full dataset"),
+                div(class = "u-actions",
+                    downloadLink("dl_fact_rds", label = tagList(icon("download"), "Data (.rds)")),
+                    downloadLink("dl_fact_csv", label = tagList(icon("download"), "Data (.csv)"))
+                )
+            ),
             br(),
             div(class = "about-doc", DT::dataTableOutput("tbl_assumptions"))
         )
@@ -205,8 +323,7 @@ ui <- tagList(
         div(class = "app-footer-row",
             div(class = "brand",
                 tags$img(src = "logo_footer.png", class = "footer-logo", alt = "AFD × GlobAgri")
-            ),
-            div(HTML("&copy; 2025 AFD × GlobAgri — Scénarios : même diète, probable, saine, Prob-S-limitée"))
+            )
         )
     )
   )
@@ -217,8 +334,62 @@ ui <- tagList(
 # ===================================================================
 server <- function(input, output, session){
   
-  # ===== Pays GLOBAL
-  r_country <- reactive(input$country_global)
+  # ============================================================
+  # SCENARIOS — SINGLE SOURCE OF TRUTH (ROBUST + DEBUG)
+  # ============================================================
+  
+  # Pays GLOBAL (fallback si header masqué)
+  r_country <- reactive(input$country_global %||% default_country)
+  
+  # Extra (le sélecteur renvoie un CODE, ex: "Prob-S-limitee")
+  r_extra_code <- reactive(input$extra_scenario_global %||% unname(SCENARIOS_EXTRA_CHOICES)[1])
+  
+  # Objet "scénarios" central (actifs/effectifs/redondance/labels)
+  # tol_rel N'EST PLUS passé ici : il est lu depuis le config par le helper.
+  sc <- scenarios_context_server(
+    fact         = fact,
+    r_country    = r_country,
+    r_extra_code = r_extra_code,
+    debug        = FALSE
+  )
+  
+  # Exposition "globale" : ce que tu passes à TOUS les modules
+  # (vecteur de CODES à afficher, déjà filtré + extra retiré si redundant)
+  r_scenarios_effective <- sc$r_scenarios_effective
+  
+  # (Optionnel mais souvent utile) : niveaux ordonnés stables, restreints aux effectifs
+  r_scen_levels_effective <- sc$r_scen_levels_effective
+  
+  # (Optionnel) : si tu as besoin ailleurs
+  r_extra_code_norm <- sc$r_extra_code_norm
+  r_extra_status    <- sc$r_extra_status
+  
+  # --- Banner : UNIQUEMENT si redundant (décision prise par le helper)
+  output$extra_scenario_banner <- renderUI({
+    if (!identical(sc$r_extra_status(), "redundant")) return(NULL)
+    
+    extra_lbl <- scenario_label(sc$r_extra_code_norm())
+    ref_lbl   <- scenario_label(sc$scen_ref)
+    
+    tags$p(
+      class = "extra-scenario-note",
+      tags$em(
+        paste0(
+          "The constraint is not reached; the additional scenario (",
+          extra_lbl,
+          ") is equivalent to the reference diet (",
+          ref_lbl,
+          "); therefore, it is not necessary to display it."
+        )
+      )
+    )
+  })
+  
+  # (Optionnel debug)
+  # observe({
+  #   message("[SC] tol_rel_effective = ", sc$tol_rel_effective)
+  # })
+  
   
   # ===== KPI header (population, densité, drapeaux)
   r_pop2050  <- reactive({ val <- unname(pop2050_dict[[ r_country() ]]); if (is.null(val)) NA_real_ else as.numeric(val) })
@@ -253,16 +424,16 @@ server <- function(input, output, session){
     }
     
     div(class = "kpi-card",
-        div(class = "kpi-head", flag_img, p(class = "kpi-title", "Population projetée en 2050 : ")),
-        p(class = "kpi-value", fmt0(v50), tags$span(class = "kpi-unit", "habitants")),
+        div(class = "kpi-head", flag_img, p(class = "kpi-title", "Projected population in 2050 :")),
+        p(class = "kpi-value", fmt0(v50), tags$span(class = "kpi-unit", "inhabitants")),
         p(class = "kpi-sub",
-          if (is.na(delta_abs)) "Augmentation vs 2018 : —"
-          else HTML(paste0("Augmentation vs 2018 : <b>", fmt0(delta_abs),
+          if (is.na(delta_abs)) "Increase vs 2018 : —"
+          else HTML(paste0("Increase vs 2018 : <b>", fmt0(delta_abs),
                            " hab.</b> (", fmt1(delta_pct), " %)"))
         ),
         p(class = "kpi-sub",
-          if (is.na(dens50)) "Densité projetée en 2050 : —"
-          else HTML(paste0("Densité projetée en 2050 : <b>", fmt1(dens50), " hab./km²</b>"))
+          if (is.na(dens50)) "Projected population density in 2050 : —"
+          else HTML(paste0("Projected population density in 2050 : <b>", fmt1(dens50), " hab./km²</b>"))
         )
     )
   })
@@ -275,83 +446,207 @@ server <- function(input, output, session){
       filter(Region == r_country(), str_trim(Element) == ENERGY_ELEMENT) %>%
       distinct(Item) %>% arrange(Item) %>% pull(Item)
   })
-  mod_energy_items_server("energy_hypo", fact = fact, r_country = r_country,
-                          r_items = r_items_all, ENERGY_ELEMENT = ENERGY_ELEMENT)
-  mod_yield_server("yield_hypo", fact_reactive = reactive(fact), country_sel = r_country)
   
-  # =======================
-  # ONGLET 2 — CROPS
-  # =======================
-  mod_harvested_stacked_server("crops_harv", fact = fact, r_country = r_country)
-  
-  # =======================
-  # ONGLET 3 — LIVESTOCK
-  # =======================
-  
-  mod_livestock_area_stacked_server(
-    "livestock_area",
-    fact      = fact,
-    r_country = r_country
+  mod_energy_items_server(
+    "energy_hypo",
+    fact = fact,
+    r_country = r_country,
+    r_items = r_items_all,
+    ENERGY_ELEMENT = ENERGY_ELEMENT
   )
   
-  mod_livestock_stocks_server("livestock_stocks", fact = fact, r_country = r_country)
-  
-  mod_ls_sankey_tonnes_server("ls_sankey_tonnes", fact = fact, r_country = r_country)
-  
-  
-  # =======================
-  # ONGLET 4 - TRADE AND DEPENDENCY
-  # =======================
+  mod_yield_server("yield_hypo", fact_reactive = reactive(fact), country_sel = r_country)
   
   mod_protein_treemap_server(
     "protein_treemap",
     fact = fact,
-    r_country = r_country   # ta réactive qui renvoie le nom de pays (colonne Region)
+    r_country = r_country
   )
   
   # =======================
-  # ONGLET 5 - EMISSION
+  # ONGLET 2 — RESUME
   # =======================
-  
-  # =======================
-  # SYNTHÈSE
-  # =======================
-  scenarios_avail_surface <- reactive({
-    allowed <- c("Même diète", "Diète probable", "Diète saine")
-    present <- fact %>%
-      dplyr::filter(Region == r_country(), Scenario %in% allowed) %>%
-      dplyr::distinct(Scenario) %>% dplyr::pull(Scenario)
-    intersect(allowed, present)
-  })
-  r_scenarios_surface <- reactive(scenarios_avail_surface())
+  r_scenarios_surface <- reactive(r_scenarios_effective())
   r_area_selected     <- reactive(input$surface_area_item)
   
-  # Area empilé (un seul appel ici — section Surfaces supprimée)
-  mod_area_stacked_server("area", fact = fact, r_country = r_country,
-                          r_scenarios = r_scenarios_surface, r_area_item = r_area_selected)
-  
-  # Cartes surfaces (ID aligné avec l’UI)
-  mod_surface_cards_server("surface_kpis",
-                           fact = fact, r_country = r_country,
-                           r_scenarios = reactive(NULL), r_area_item = reactive(input$surface_area_item)
+  area <- mod_area_stacked_server(
+    "area",
+    fact        = fact,
+    r_country   = r_country,
+    r_scenarios = r_scenarios_surface
   )
   
-  dsq <- mod_dsq_cards_server("dsq_cards", fact = fact, r_country = r_country)
-  mod_energy_sankey_server("sankey", fact = fact, r_country = r_country,
-                           r_selected_scenario = dsq$selected_scenario, unit_label = "Gcal")
+  r_flow_mode <- reactive({
+    m <- input[["sankey-unit_mode"]]
+    if (is.null(m) || !m %in% c("energy", "mass")) "energy" else m
+  })
+  
+  dsq <- mod_dsq_cards_server(
+    "dsq_cards",
+    fact                  = fact,
+    r_country             = r_country,
+    r_flow_mode           = r_flow_mode,
+    r_scenarios_effective = area$scen_levels_effective,
+    unit_label            = "Gcal"
+  )
+  
+  mod_energy_sankey_server(
+    "sankey",
+    fact                = fact,
+    r_country           = r_country,
+    r_selected_scenario = dsq$selected_scenario,
+    unit_label          = "Gcal"
+  )
+  
+  # =====================
+  # ONGLET 3 – CROPS
+  # =====================
+  mod_harvested_stacked_server(
+    "harv_stack",
+    fact      = fact,
+    r_country = r_country,
+    r_scenarios = r_scenarios_effective,  
+    group_var = "Item_group"
+  )
+  
+  
+  mod_harvested_trend_server(
+    "harv_trend",
+    fact      = fact,
+    r_country = r_country,
+    r_scenarios = r_scenarios_effective,  
+    group_var = "Item_group"
+  )
+  
+  mod_crop_structure_server(
+    "crop_structure",
+    fact      = fact,
+    r_country = r_country,
+    r_scenarios = r_scenarios_effective,
+    group_var = "Item_group"
+  )
+  
+  mod_crop_sankey_tonnes_server(
+    "crop_sankey",
+    fact      = fact,
+    r_country = r_country,
+    r_scenarios = r_scenarios_effective,
+    group_var = "Item_group"
+  )
   
   # =======================
-  # À PROPOS
+  # ONGLET 4 — LIVESTOCK
   # =======================
+  ls_area <- mod_livestock_area_stacked_server(
+    id        = "livestock_area",
+    fact      = fact,
+    r_country = r_country,
+    r_scenarios = r_scenarios_effective
+  )
   
-  # Helper si jamais 'fact' est réactive (sinon, il renvoie l'objet tel quel)
+  mod_livestock_stocks_server(
+    id          = "livestock_stocks",
+    fact        = fact,
+    r_country   = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  mod_livestock_system_stocks_server(
+    id          = "livestock_system_stocks",
+    fact        = fact,
+    r_country   = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  mod_animal_efficiency_server(
+    "animal_eff",
+    fact       = fact,
+    r_country  = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  mod_livestock_energy_share_server(
+    id         = "energy_share",
+    fact       = fact,
+    r_country  = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  mod_ls_sankey_tonnes_server(
+    "ls_sankey_tonnes",
+    fact       = fact,
+    r_country  = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  # =======================
+  # ONGLET 5 - FOREST
+  # =======================
+  ret_forest <- mod_forest_stacked_server(
+    "forest_only",
+    fact = fact,
+    r_country = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  mod_forest_share100_server(
+    "forest_share100",
+    fact = fact,
+    r_country = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  # =======================
+  # ONGLET 6 - TRADE AND DEPENDENCY
+  # =======================
+  mod_import_quantity_server(
+    "trade_imports",
+    fact      = fact,
+    r_country = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  mod_energy_balance_server(
+    "trade_balance",
+    fact      = fact,
+    r_country = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  mod_dependancy_import_food_items_server(
+    id = "dep_import_food",
+    fact = fact,
+    r_country = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  # =======================
+  # ONGLET 7 - EMISSION
+  # =======================
+  luc <- mod_land_use_change_server(
+    id        = "luc",
+    fact      = fact,
+    r_country = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  mod_emissions_stacked_server(
+    id          = "emiss_stack",
+    fact        = fact,
+    r_country   = r_country,
+    r_scenarios = r_scenarios_effective
+  )
+  
+  # =======================
+  # ONGLET 8 - À PROPOS
+  # =======================
   .get_fact <- function(x) if (is.function(x)) x() else x
   
   output$dl_fact_rds <- downloadHandler(
     filename = function() paste0("fact_", Sys.Date(), ".rds"),
     content  = function(file){
       df <- .get_fact(fact)
-      saveRDS(df, file, compress = "xz")  # compact et fidèle aux types
+      saveRDS(df, file, compress = "xz")
     }
   )
   
@@ -359,9 +654,7 @@ server <- function(input, output, session){
     filename = function() paste0("fact_", Sys.Date(), ".csv"),
     content  = function(file){
       df <- .get_fact(fact)
-      # sécurise les types pour CSV
       df <- dplyr::mutate(df, dplyr::across(where(is.factor), as.character))
-      # si colonnes liste : sérialise en JSON (évite les erreurs d'écriture)
       df <- dplyr::mutate(df, dplyr::across(
         where(\(x) inherits(x, "list")),
         ~purrr::map_chr(., jsonlite::toJSON, auto_unbox = TRUE, null = "null")
@@ -369,9 +662,6 @@ server <- function(input, output, session){
       readr::write_delim(df, file, delim = ";", na = "", escape = "double")
     }
   )
-  
 }
 
 shinyApp(ui, server)
-
-
