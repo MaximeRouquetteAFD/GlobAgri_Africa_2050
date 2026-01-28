@@ -2,8 +2,19 @@
 # -------------------------------------------------------------------
 # Shares of crop groups in Production / Import Quantity
 # (one pie chart per scenario, incl. base year if present)
-# + Pie size proportional to total (tonnes) to show shares + levels
-# + Scenario totals displayed in Mt
+# + Pie size proportional to total (to show shares + levels)
+# + Scenario totals displayed under pies, adapted to the selected unit:
+#     - Mass (tons): Total shown in Mt (million tons)
+#     - Energy (Gcal): Total shown in Gcal
+#
+# NEW:
+# - Unit toggle: Energy (Gcal) / Mass (tons)  (default = Energy)
+# - Uses Energy elements when "Energy (Gcal)" is selected:
+#     * Energy Production
+#     * Energy Import Quantity
+# - Uses Mass elements when "Mass (tons)" is selected:
+#     * Production
+#     * Import Quantity
 #
 # SCENARIO RULES (project-wide):
 # - The module NEVER rebuilds scenario logic locally.
@@ -25,7 +36,6 @@ suppressPackageStartupMessages({
 
 # --- Crop groups -----------------------------------------------------------
 # 👉 Grass & fodder is EXCLUDED from groups and from the total
-
 CROP_GROUPS <- list(
   "All crop products" = c(
     "Cake Other Oilcrops","Fibers etc.","Fruits and vegetables",
@@ -90,30 +100,27 @@ CROP_TO_ITEM_FAMILY <- c(
 # -------------------------------------------------------------------
 # UI
 # -------------------------------------------------------------------
-
 mod_crop_structure_ui <- function(id){
   ns <- NS(id)
-  tagList(
-    uiOutput(ns("block"))
-  )
+  tagList(uiOutput(ns("block")))
 }
 
 # -------------------------------------------------------------------
 # Server
 # -------------------------------------------------------------------
-
 mod_crop_structure_server <- function(
     id,
     fact,
     r_country,
-    r_scenarios,         # <--- REQUIRED: reactive returning scenario CODES to display
+    r_scenarios,         # REQUIRED: reactive/function returning scenario CODES to display
     group_var = NULL,
     harvest_element = "Area harvested",
     exclude_items = c(
       "All products","All crops","Agricultural land occupation (Farm)",
       "Cropland","Forest land","Land under perm. meadows and pastures"
     ),
-    value_multiplier = 1
+    value_multiplier = 1,
+    value_multiplier_energy = 1  # optional extra scaling for energy if needed
 ){
   moduleServer(id, function(input, output, session){
     
@@ -137,12 +144,43 @@ mod_crop_structure_server <- function(
     
     ELEMENT_CHOICES <- c("Production", "Import Quantity")
     
+    # --- Unit toggle --------------------------------------------------------
+    unit_mode <- reactive({
+      u <- input$unit %||% "energy"
+      if (!u %in% c("energy","mass")) u <- "energy"
+      u
+    })
+    
+    unit_lbl <- reactive(if (identical(unit_mode(), "energy")) "Gcal" else "t")
+    
+    # UI -> fact$Element mapping (explicit, avoids string mismatch)
+    element_fact <- reactive({
+      req(input$element)
+      if (identical(unit_mode(), "energy")) {
+        if (identical(input$element, "Production")) return("Energy Production")
+        if (identical(input$element, "Import Quantity")) return("Energy Import Quantity")
+        return(paste0("Energy ", input$element))
+      } else {
+        input$element
+      }
+    })
+    
+    # Display multiplier:
+    # - MASS: fact values are in 1000 tonnes -> show in tonnes (× 1000)
+    # - ENERGY: assume already in Gcal
+    value_mult <- reactive({
+      if (identical(unit_mode(), "mass")) {
+        as.numeric(value_multiplier %||% 1) * 1000
+      } else {
+        as.numeric(value_multiplier %||% 1) * as.numeric(value_multiplier_energy %||% 1)
+      }
+    })
+    
     # --- Scenario codes to display (ordered centrally) ----------------------
     scen_codes_ordered <- reactive({
       sc <- unique(as.character(r_scenarios()))
       sc <- sc[!is.na(sc) & nzchar(sc)]
       
-      # Central order: SCENARIO_LEVELS_DEFAULT, then deterministic append for unknown codes (should be rare)
       known   <- intersect(SCENARIO_LEVELS_DEFAULT, sc)
       unknown <- setdiff(sc, SCENARIO_LEVELS_DEFAULT)
       
@@ -156,45 +194,45 @@ mod_crop_structure_server <- function(
     
     # --- bindCache keys (scalar) -------------------------------------------
     cache_key_years <- reactive({
-      req(input$element, r_country())
+      req(element_fact(), r_country(), unit_mode())
       paste0(
         "crop_structure|years|",
         r_country(), "|",
-        input$element, "|sc=",
+        element_fact(), "|unit=", unit_mode(), "|sc=",
         paste(scen_codes_ordered(), collapse = ",")
       )
     })
     
     cache_key_data <- reactive({
-      req(input$element, r_country())
+      req(element_fact(), r_country(), unit_mode())
       paste0(
         "crop_structure|data|",
         r_country(), "|",
-        input$element, "|sc=",
+        element_fact(), "|unit=", unit_mode(), "|sc=",
         paste(scen_codes_ordered(), collapse = ",")
       )
     })
     
     cache_key_plot <- reactive({
-      req(input$element, r_country())
+      req(element_fact(), r_country(), unit_mode())
       paste0(
         "crop_structure|plot|",
         r_country(), "|",
-        input$element, "|sc=",
+        element_fact(), "|unit=", unit_mode(), "|sc=",
         paste(scen_codes_ordered(), collapse = ",")
       )
     })
     
     # --- Years by scenario for the selected element ------------------------
     years_by_scenario <- reactive({
-      req(input$element)
+      req(element_fact())
       sc_req <- scen_codes_ordered()
       validate(need(length(sc_req) > 0, "No scenario selected."))
       
       fact %>%
         filter(
           Region == r_country(),
-          stringr::str_trim(Element) == input$element,
+          stringr::str_trim(Element) == element_fact(),
           Scenario %in% sc_req
         ) %>%
         group_by(Scenario) %>%
@@ -234,18 +272,20 @@ mod_crop_structure_server <- function(
     
     # --- Aggregated data by crop group -------------------------------------
     data_groups <- reactive({
-      req(input$element)
+      req(element_fact(), unit_mode())
       yrs <- years_by_scenario()
       
       validate(need(nrow(yrs) > 0,
-                    sprintf("No data for %s in this country.", input$element)))
+                    sprintf("No data for %s in this country.", element_fact())))
       
       scen_present <- yrs$Scenario_code
+      mult <- value_mult()
+      uout <- unit_lbl()
       
       df_raw <- fact %>%
         filter(
           Region == r_country(),
-          stringr::str_trim(Element) == input$element,
+          stringr::str_trim(Element) == element_fact(),
           Scenario %in% scen_present,
           Item %in% CROP_GROUPS[["All crop products"]]
         ) %>%
@@ -254,8 +294,8 @@ mod_crop_structure_server <- function(
         left_join(CROP_ITEM_GROUP, by = "Item") %>%
         group_by(Scenario, crop_group) %>%
         summarise(
-          value   = sum(Value, na.rm = TRUE),
-          unit    = dplyr::first(na.omit(Unit)),
+          value   = sum(Value, na.rm = TRUE) * mult,
+          unit    = uout,
           year    = dplyr::first(Year),
           .groups = "drop"
         ) %>%
@@ -275,10 +315,7 @@ mod_crop_structure_server <- function(
         left_join(select(yrs, Scenario, year_used), by = "Scenario") %>%
         mutate(
           value = coalesce(value, 0),
-          unit  = coalesce(
-            unit,
-            (unique(na.omit(df_raw$unit)) %||% "1000 tonnes")[1]
-          ),
+          unit  = coalesce(unit, uout),
           year  = coalesce(year, year_used),
           crop_group_label = CROP_LABELS[crop_group]
         ) %>%
@@ -305,15 +342,6 @@ mod_crop_structure_server <- function(
       cols
     }) %>% bindCache(cache_key_data())
     
-    # --- Unit / subtitle lines ---------------------------------------------
-    unit_line_text <- reactive({
-      pd <- data_groups()
-      u <- unique(na.omit(pd$unit))
-      if (length(u) == 0) return("Unit in raw data: 1000 tonnes.")
-      if (length(u) == 1) return(paste0("Unit in raw data: ", u, "."))
-      paste0("Unit in raw data: ", u[1], " (multiple units detected).")
-    }) %>% bindCache(cache_key_data())
-    
     # === BLOCK UI ===========================================================
     output$block <- renderUI({
       ns <- session$ns
@@ -323,18 +351,26 @@ mod_crop_structure_server <- function(
         div(
           class = "card-body",
           
-          h2("Structure of crop production and imports"),
+          h2(textOutput(ns("title"))),
           
           div(
             class = "u-controls",
             radioButtons(
+              inputId  = ns("unit"),
+              label    = NULL,
+              choices  = c("Energy (Gcal)" = "energy", "Mass (tons)" = "mass"),
+              selected = "energy",
+              inline   = TRUE
+            ),
+            selectInput(
               inputId  = ns("element"),
-              label    = "Flow considered in tons",
+              label    = "Flow considered",
               choices  = ELEMENT_CHOICES,
               selected = "Production",
-              inline   = TRUE
+              width    = "220px"
             )
           ),
+          
           
           plotly::plotlyOutput(ns("pie_crops"), height = "460px", width = "100%"),
           
@@ -349,6 +385,11 @@ mod_crop_structure_server <- function(
           uiOutput(ns("note"))
         )
       )
+    })
+    
+    output$title <- renderText({
+      u <- if (identical(unit_mode(), "energy")) "Energy (Gcal)" else "Mass (tons)"
+      paste0("Structure of crop production and imports - ", u)
     })
     
     # --- Pies ---------------------------------------------------------------
@@ -388,7 +429,8 @@ mod_crop_structure_server <- function(
           text_pos = if_else(share < 0.05, "outside", "inside")
         )
       
-      unit_lbl <- (unique(na.omit(df_share$unit)) %||% "1000 tonnes")[1]
+      u_lbl <- unit_lbl()
+      flow_lbl <- input$element %||% "Flow"
       
       totals <- df_share %>%
         distinct(Scenario, total, year) %>%
@@ -409,36 +451,24 @@ mod_crop_structure_server <- function(
         c((i - 1) / n_pies, i / n_pies)
       })
       
-      dom_y_fixed <- c(0.20, 0.98)
+      dom_y_fixed <- c(0.22, 0.90)
       padding <- 0.92
       
-      fmt_total_mt <- function(x, unit_lbl){
-        u <- tolower(trimws(unit_lbl %||% ""))
-        
-        if (grepl("^1000\\s*ton", u) || grepl("thousand\\s*ton", u) || grepl("^1\\s*000\\s*ton", u)) {
-          mt <- x / 1000
-          return(list(
-            text   = scales::number(mt, accuracy = 0.001, big.mark = ",", decimal.mark = "."),
-            suffix = "Mt"
-          ))
-        }
-        
-        if (grepl("million", u) && grepl("ton", u)) {
-          return(list(
-            text   = scales::number(x, accuracy = 0.001, big.mark = ",", decimal.mark = "."),
-            suffix = "Mt"
-          ))
-        }
-        
-        if (grepl("ton", u)) {
+      fmt_total <- function(x){
+        if (identical(unit_mode(), "mass")) {
+          # x in tonnes -> show in Mt (million tonnes)
           mt <- x / 1e6
-          return(list(
+          list(
             text   = scales::number(mt, accuracy = 0.001, big.mark = ",", decimal.mark = "."),
             suffix = "Mt"
-          ))
+          )
+        } else {
+          # x in Gcal -> show in Gcal
+          list(
+            text   = scales::number(x, accuracy = 1, big.mark = ",", decimal.mark = "."),
+            suffix = "Gcal"
+          )
         }
-        
-        list(text = scales::comma(x, accuracy = 1), suffix = unit_lbl)
       }
       
       p <- plotly::plot_ly()
@@ -468,7 +498,6 @@ mod_crop_structure_server <- function(
         
         if (nrow(d) == 0) next
         
-        # >>> Légende Plotly native : ON NE L’AFFICHE QUE SUR LE 1er PIE
         show_leg <- (i == 1)
         
         p <- p %>%
@@ -478,7 +507,7 @@ mod_crop_structure_server <- function(
             values = ~share,
             text   = ~label_pct,
             textinfo = "text",
-            name   = sc_lab,  # UI label
+            name   = sc_lab,
             domain = list(x = dom_x, y = dom_y_fixed),
             sort   = FALSE,
             textposition = ~text_pos,
@@ -490,13 +519,13 @@ mod_crop_structure_server <- function(
               "<b>", sc_lab, "</b><br>",
               "%{label}<br>",
               "Share: %{percent}<br>",
-              "Value: %{customdata:,} ", unit_lbl,
+              "Value: %{customdata:,} ", u_lbl,
               "<extra></extra>"
             ),
             showlegend  = show_leg
           )
         
-        tot_disp <- fmt_total_mt(sc_total, unit_lbl)
+        tot_disp <- fmt_total(sc_total)
         
         annotations[[i]] <- list(
           x = slot_center,
@@ -510,8 +539,8 @@ mod_crop_structure_server <- function(
             sc_lab,
             if (!is.na(sc_year)) paste0(" (", sc_year, ")") else "",
             "</span>",
-            "<br><span style='font-size:11px;color:", th$muted_color, ";'>Total: ",
-            tot_disp$text, " ", tot_disp$suffix,
+            "<br><span style='font-size:11px;color:", th$muted_color, ";'>",
+            "Total ", flow_lbl, ": ", tot_disp$text, " ", tot_disp$suffix,
             "</span>"
           ),
           font = list(size = 12, color = th$font_color)
@@ -524,7 +553,7 @@ mod_crop_structure_server <- function(
         plotly::layout(
           title         = NULL,
           annotations   = annotations,
-          margin        = list(t = 70, b = 20, l = 40, r = 40),
+          margin        = list(t = 80, b = 20, l = 40, r = 40),
           showlegend    = TRUE,
           legend        = list(
             orientation = "h",
@@ -551,7 +580,9 @@ mod_crop_structure_server <- function(
           "Crop_structure_",
           gsub(" ", "_", r_country()),
           "_",
-          gsub(" ", "_", input$element),
+          gsub(" ", "_", element_fact()),
+          "_",
+          unit_mode(),
           ".csv"
         )
       },
@@ -563,10 +594,12 @@ mod_crop_structure_server <- function(
             Scenario_code  = as.character(Scenario),
             Scenario_label = scenario_label_vec(as.character(Scenario)),
             Year           = year,
-            Element        = input$element,
+            Element_UI     = input$element,
+            Element_fact   = element_fact(),
+            Unit_mode      = unit_mode(),
+            Unit           = unit_lbl(),
             Crop_group     = crop_group_label,
             Value          = value,
-            Unit           = unit,
             Total          = total,
             Share          = share
           )
@@ -576,20 +609,24 @@ mod_crop_structure_server <- function(
     
     # --- Note ---------------------------------------------------------------
     output$note <- renderUI({
-      htmltools::HTML("
-        <p>
-        Each pie chart shows, for the selected country, the structure of
-        crop <strong>production</strong> or crop <strong>imports</strong> by
-        broad crop groups (cereals, roots and tubers, pulses, oilcrops,
-        fruits and vegetables, sugar crops, fibre and other plant products),
+      u_txt <- if (identical(unit_mode(), "energy")) "energy (Gcal)" else "mass (tons)"
+      e_txt <- input$element %||% "Production"
+      
+      htmltools::HTML(paste0(
+        "<p>
+        Each pie chart shows, for the selected country, the structure of crop <strong>", e_txt, "</strong> by broad crop groups
+        (cereals, roots and tubers, pulses, oilcrops, fruits and vegetables, sugar crops, fibre and other plant products),
         excluding forage and grass crops.
         </p>
         <p>
-        Slice sizes represent shares within each scenario. The overall pie area
-        is proportional to the scenario total (to convey both composition and level).
-        Scenario totals shown below the pies are expressed in millions tons (Mt).
+        Use the toggle to display results in <strong>", u_txt, "</strong>. Slice sizes represent shares within each scenario.
+        The overall pie area is proportional to the scenario total (to convey both composition and level).
         </p>
-      ")
+        <p>
+        Totals shown under each pie are expressed in <strong>Mt</strong> when mass is selected (million tons),
+        and in <strong>Gcal</strong> when energy is selected.
+        </p>"
+      ))
     })
     
   })

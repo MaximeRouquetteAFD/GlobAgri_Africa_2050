@@ -13,7 +13,7 @@ mod_harvested_trend_ui <- function(id, height = "800px", full_width = TRUE){
     div(
       class = "card-body",
       
-      h3("Focus on changes in harvested areas between 2018 and 2050"),
+      h2("Focus on changes in harvested areas between 2018 and 2050"),
       
       div(
         class = "u-controls u-controls--inline",

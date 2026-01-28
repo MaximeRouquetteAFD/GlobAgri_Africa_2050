@@ -1,4 +1,4 @@
-# R/00_config_scenarios.R
+# R/0.0_config_scenarios.R
 # Ce module permet de centraliser l'ordre et le nom des scénarios. Ainsi les noms, l'ordre peuvent être changés pour toute l'application !
 # Par ailleurs, ce module nous permet de définir le coefficient qui determine si 2 scénarios sont redondants 
 # ce qui conditionne ensuite l'affichage : aujourd'hui, il est à 00.5 
@@ -12,7 +12,6 @@ scenario_code <- function(x) {
   x <- stringr::str_replace_all(x, "_", "-")
   x
 }
-
 
 # 1) Codes (DOIVENT matcher fact$Scenario)
 SCENARIO_BASE_YEAR_CODE <- scenario_code("Année de base")

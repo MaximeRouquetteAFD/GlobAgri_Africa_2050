@@ -6,10 +6,9 @@
 mod_dsq_cards_ui <- function(id){
   ns <- NS(id)
   tagList(
-    h3(class = "section-title", textOutput(ns("title"))),
-    
+    h2(class = "section-title", textOutput(ns("title"))),
+    tags$br(),
     div(id = ns("root"), uiOutput(ns("cards_row"))),
-    
     tags$script(HTML(sprintf("
       $(document).on('click', '#%s .dsq-card', function(){
         var scen = $(this).data('scenario') || null;
@@ -70,7 +69,7 @@ mod_dsq_cards_server <- function(
     })
     
     output$title <- renderText({
-      if (flow_mode() == "mass") "Offre intérieure totale (tonnes)" else "Offre intérieure totale (Gcal)"
+      if (flow_mode() == "mass") "Total domestic supply (tons)" else "Total domestic supply (Gcal)"
     })
     
     # --- Scénarios à afficher (CODES), ordre = config ----------------------

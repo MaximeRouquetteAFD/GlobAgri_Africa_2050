@@ -26,7 +26,7 @@ mod_livestock_energy_share_ui <- function(id, wrap_in_card = TRUE) {
   ns <- NS(id)
   
   content <- tagList(
-    h2("Share of feed in total available domestic agricultural products (Gcal)"),
+    h2("Share of feed in total domestic supply (Gcal)"),
     plotly::plotlyOutput(ns("plot"), height = "450px"),
     
     div(

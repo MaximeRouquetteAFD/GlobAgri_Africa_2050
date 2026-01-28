@@ -27,8 +27,8 @@ src_available <- all(file_exists(src_csv))
 ## --- Inputs qui DOIVENT déclencher un rebuild s'ils changent
 build_inputs <- c(
   src_csv,
-  "R/00_make_clean_tables.R",
-  "R/00_config_scenarios.R"
+  "R/0.0_make_clean_tables.R",
+  "R/0.0_config_scenarios.R"
 )
 
 ## --- Hashing robuste (clés = chemins absolus canonisés)
@@ -46,10 +46,8 @@ hashes_current <- function(paths){
 hashes_equal <- function(paths, meta_path){
   if (!all(fs::file_exists(paths))) return(TRUE)      # pas de rebuild si on ne peut pas vérifier
   if (!fs::file_exists(meta_path)) return(FALSE)
-  
   meta <- readRDS(meta_path)
   cur  <- hashes_current(paths)
-  
   identical(meta, cur)
 }
 
@@ -121,7 +119,7 @@ if (do_rebuild) {
   message("► BUILD START: ", Sys.time())
   message("  global.R path = ", normalizePath("global.R", mustWork = FALSE))
   
-  source("R/00_make_clean_tables.R", local = TRUE)
+  source("R/0.0_make_clean_tables.R", local = TRUE)
   make_clean_tables(data_dir = data_dir, overwrite = TRUE)
   
   # Sauvegarde meta stable (chemins canonisés)

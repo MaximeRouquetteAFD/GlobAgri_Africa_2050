@@ -80,7 +80,7 @@ mod_import_quantity_server <- function(
     ns <- session$ns
     
     # ------------------------------------------------------------------
-    # Dependencies expected (global, from R/00_config_scenarios.R)
+    # Dependencies expected (global, from R/0.0_config_scenarios.R)
     # - scenario_code()
     # - scenario_label()
     # - SCENARIO_LEVELS_DEFAULT
@@ -241,7 +241,7 @@ mod_import_quantity_server <- function(
       # Passage en millions de Gcal
       scale_factor <- 1e6
       df_sum <- df_sum %>%
-        dplyr::mutate(Value = .data$Value / scale_factor)
+        dplyr::mutate(Value = Value / scale_factor)
       
       raw_unit   <- paste(unique(df_sum$Unit), collapse = ", ")
       unit_label <- paste("million", raw_unit)
@@ -259,15 +259,15 @@ mod_import_quantity_server <- function(
       )
       
       flow_pretty <- c(
-        "Imports"               = "Energy imports",
-        "Domestic supply"       = "Total energy supply",
-        "Exports"               = "Energy exports",
-        "Production"            = "Energy production",
-        "Food"                  = "Energy used for food",
-        "Feed"                  = "Energy used for feed",
-        "Losses"                = "Energy losses",
-        "Seed"                  = "Energy used as seed",
-        "Other uses (non-food)" = "Other non-food energy uses"
+        "Imports"               = "Biomass import in energy (million of Gcal)",
+        "Domestic supply"       = "Biomass domestic supply in energy (million of Gcal)",
+        "Exports"               = "Biomass export in energy (million of Gcal)",
+        "Production"            = "Biomass production in energy (million of Gcal)",
+        "Food"                  = "Biomass used for food in energy (million of Gcal)",
+        "Feed"                  = "Biomass used for feed in energy (million of Gcal)",
+        "Losses"                = "Biomass lost in energy (million of Gcal)",
+        "Seed"                  = "Biomass used as seed in energy (million of Gcal)",
+        "Other uses (non-food)" = "Biomass used as non-food in energy (million of Gcal)"
       )
       
       flow_name <- mode_to_flow[[mode]]
@@ -336,14 +336,14 @@ mod_import_quantity_server <- function(
         ggplot2::geom_col(fill = this_color, show.legend = FALSE) +
         ggplot2::geom_text(
           data = df_labels,
-          ggplot2::aes(y = .data$label_y, label = .data$pct_label),
+          ggplot2::aes(y = .data$label_y, label = pct_label),
           vjust = 0,
           size  = 3.5,
           colour = gg_txt
         ) +
         ggplot2::labs(
           x = NULL,
-          y = paste0(nice_label, " (", unit_label, ")")
+          y = nice_label
         ) +
         ggplot2::scale_x_discrete(labels = function(x) scenario_label(x)) +
         ggplot2::scale_y_continuous(

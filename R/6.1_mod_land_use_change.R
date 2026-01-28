@@ -41,7 +41,7 @@ mod_land_use_change_ui <- function(id, height = "600px"){
       class = "card",
       div(
         class = "card-body",
-        h3("Land use change and associated emissions"),
+        h2("Land use change and associated emissions"),
         plotly::plotlyOutput(ns("plot"), height = height),
         
         div(
