@@ -1,7 +1,4 @@
-# R/1.2_mod_dsq_cards.R
-# ============================================================
-# DSQ cards — scénarios pilotés par le contrat global (config + helper)
-# ============================================================
+# R/1.3_mod_dsq_cards.R
 
 mod_dsq_cards_ui <- function(id){
   ns <- NS(id)

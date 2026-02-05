@@ -108,9 +108,9 @@ pal_crops <- function(items){
     "Other Cereals"                  = "#E8C547",
     "Other"                          = "#AF7AA1",
     "Perennial plants and stimulants" = "#59A14F",
-    "Roots and Tuber"                = "#EDC948",
+    "Roots and Tuber"                = "#9C755F",
     "Pulses and Soyabeans"           = "#76B7B2",
-    "Oilcrops"                       = "#9C755F",
+    "Oilcrops"                       = "#8C564B",
     "Millet and Sorghum"             = "#F28460"
   )
   out <- base[items]

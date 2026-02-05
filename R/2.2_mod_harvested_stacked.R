@@ -1,8 +1,8 @@
-# R/12_mod_harvested_stacked.R
+# R/2.2_mod_harvested_stacked.R
 # ---------------------------------------------------------------
 # Module : barres empilées "Area harvested" + cartes KPI
-# - Utilise harvested_core() pour les calculs
-# - Scénarios centralisés (config + helper global via r_scenarios)
+# - Ordre de légende fixé : Cereals -> Pulses -> Roots and tubers -> Oilseeds -> Other
+# - Tooltip: ajout Δ% vs base-year par item
 # ---------------------------------------------------------------
 
 mod_harvested_stacked_ui <- function(id, height = "480px", full_width = TRUE){
@@ -14,7 +14,6 @@ mod_harvested_stacked_ui <- function(id, height = "480px", full_width = TRUE){
       
       h2("Area harvested per crop according to the scenarios (in hectares)"),
       
-      # Message explicatif si scénario extra redondant
       uiOutput(ns("limit_msg")),
       
       plotly::plotlyOutput(ns("stack_harv"), height = "490px", width = "100%"),
@@ -54,7 +53,7 @@ mod_harvested_stacked_server <- function(
     id,
     fact,
     r_country,
-    r_scenarios = NULL, # <- NOUVEAU : scenarios effectifs depuis app.R (reactive)
+    r_scenarios = NULL,
     harvest_element = "Area harvested",
     exclude_items = c(
       "All products","All crops","Agricultural land occupation (Farm)",
@@ -77,7 +76,6 @@ mod_harvested_stacked_server <- function(
       function(x) sc_norm(x)
     }
     
-    # Palette cultures (utilise pal_crops() si dispo)
     harvest_colors_for <- function(items){
       if (exists("pal_crops", mode = "function", inherits = TRUE)) {
         pal_crops(items)
@@ -86,7 +84,6 @@ mod_harvested_stacked_server <- function(
       }
     }
     
-    # Renommage d'item (affichage + export)
     rename_harvest_items <- function(df){
       if (!"Item" %in% names(df)) return(df)
       
@@ -104,7 +101,60 @@ mod_harvested_stacked_server <- function(
     }
     
     # -----------------------------------------------------------
-    # Noyau commun : scénarios centralisés + respect helper global
+    # NEW: Item grouping + ordering (legend order fixed)
+    # Priority:
+    #  1) Config vectors if they exist (strict control)
+    #     - CROP_ITEMS_CEREALS
+    #     - CROP_ITEMS_PULSES
+    #     - CROP_ITEMS_ROOTS_TUBERS
+    #     - CROP_ITEMS_OILSEEDS
+    #  2) Fallback: name-based heuristics
+    # -----------------------------------------------------------
+    norm_item <- function(x){
+      stringr::str_to_lower(stringr::str_squish(as.character(x)))
+    }
+    
+    get_cfg_vec <- function(name){
+      if (exists(name, inherits = TRUE)) get(name, inherits = TRUE) else NULL
+    }
+    
+    CFG_CEREALS      <- get_cfg_vec("CROP_ITEMS_CEREALS")
+    CFG_PULSES       <- get_cfg_vec("CROP_ITEMS_PULSES")
+    CFG_ROOTS_TUBERS <- get_cfg_vec("CROP_ITEMS_ROOTS_TUBERS")
+    CFG_OILSEEDS     <- get_cfg_vec("CROP_ITEMS_OILSEEDS")
+    CFG_PERENNIAL_STIM <- get_cfg_vec("CROP_ITEMS_PERENNIAL_STIMULANTS")
+    
+    if (!is.null(CFG_CEREALS))      CFG_CEREALS      <- norm_item(CFG_CEREALS)
+    if (!is.null(CFG_PULSES))       CFG_PULSES       <- norm_item(CFG_PULSES)
+    if (!is.null(CFG_ROOTS_TUBERS)) CFG_ROOTS_TUBERS <- norm_item(CFG_ROOTS_TUBERS)
+    if (!is.null(CFG_OILSEEDS))     CFG_OILSEEDS     <- norm_item(CFG_OILSEEDS)
+    if (!is.null(CFG_PERENNIAL_STIM)) CFG_PERENNIAL_STIM <- norm_item(CFG_PERENNIAL_STIM)
+    
+    crop_group_from_item <- function(item_chr){
+      it <- norm_item(item_chr)
+      
+      # strict config first
+      if (!is.null(CFG_CEREALS)      && it %in% CFG_CEREALS)      return("Cereals")
+      if (!is.null(CFG_PULSES)       && it %in% CFG_PULSES)       return("Pulses")
+      if (!is.null(CFG_ROOTS_TUBERS) && it %in% CFG_ROOTS_TUBERS) return("Roots and tubers")
+      if (!is.null(CFG_OILSEEDS)     && it %in% CFG_OILSEEDS)     return("Oilseeds")
+      if (!is.null(CFG_PERENNIAL_STIM) && it %in% CFG_PERENNIAL_STIM) return("Perennial crops and stimulants")
+      
+      # fallback heuristics (only on label text; does not touch data)
+      if (stringr::str_detect(it, "\\bcereal|wheat|maize|corn|rice|barley|sorghum|millet|oat|rye\\b")) return("Cereals")
+      if (stringr::str_detect(it, "\\bpulse|bean|peas|pea|lentil|chickpea|cowpea|pigeon\\s*pea\\b"))   return("Pulses")
+      if (stringr::str_detect(it, "\\broot|tuber|cassava|yam|potato|sweet\\s*potato\\b"))              return("Roots and tubers")
+      if (stringr::str_detect(it, "\\boilseed|oilcrops|soy|soya|groundnut|peanut|rapeseed|canola|sunflower|sesame\\b")) return("Oilseeds")
+      if (stringr::str_detect(it, "\\bperennial\\b|stimulant|tea|cocoa|coffee|oilpalm|sugar\\s*cane")) return("Perennial crops and stimulants")
+      
+      
+      "Other"
+    }
+    
+      group_order_levels <- c("Cereals","Pulses","Roots and tubers","Oilseeds","Perennial crops and stimulants","Other")
+    
+    # -----------------------------------------------------------
+    # Noyau commun : scénarios centralisés + helper global
     # -----------------------------------------------------------
     core <- harvested_core(
       fact             = fact,
@@ -113,26 +163,25 @@ mod_harvested_stacked_server <- function(
       exclude_items     = exclude_items,
       value_multiplier  = value_multiplier,
       group_var         = group_var,
-      r_scenarios       = r_scenarios   # <- IMPORTANT : branchement helper global
+      r_scenarios       = r_scenarios
     )
     
     scen_base            <- core$scen_base
     scen_ref             <- core$scen_ref
-    scen_show             <- core$scen_show   # reactive (vecteur de codes)
-    scen_extra_selected   <- core$scen_extra_selected     # reactive
-    levels_all            <- core$levels_all              # reactive
-    years_by_scenario     <- core$years_by_scenario
-    data_harvested        <- core$data_harvested
-    constraint_info       <- core$constraint_info
-    scen_diets_effective  <- core$scen_diets_effective
-    # data_harvested_groups <- core$data_harvested_groups  # pas utilisé ici
+    scen_show            <- core$scen_show
+    scen_extra_selected  <- core$scen_extra_selected
+    levels_all           <- core$levels_all
+    years_by_scenario    <- core$years_by_scenario
+    data_harvested       <- core$data_harvested
+    constraint_info      <- core$constraint_info
+    scen_diets_effective <- core$scen_diets_effective
     
     scen_show_key <- reactive({
       paste(as.character(scen_show()), collapse = "|")
     })
     
     # -----------------------------------------------------------
-    # KPI : total par scénario + % vs base + Δha vs trend (uniquement pour extra si affiché)
+    # KPI : inchangé
     # -----------------------------------------------------------
     kpi_harvested <- reactive({
       da <- rename_harvest_items(data_harvested())
@@ -140,7 +189,6 @@ mod_harvested_stacked_server <- function(
       scen_show_codes <- scen_show()
       req(length(scen_show_codes) > 0)
       
-      # Extra(s) depuis config (codes), optionnel
       extra_codes <- if (exists("SCENARIOS_EXTRA_CODES", inherits = TRUE)) {
         as.character(SCENARIOS_EXTRA_CODES)
       } else {
@@ -148,13 +196,11 @@ mod_harvested_stacked_server <- function(
       }
       extra_codes <- intersect(as.character(scen_show_codes), extra_codes)
       
-      # Agrégation sur ce qui existe
       agg_raw <- da %>%
         dplyr::group_by(Scenario) %>%
         dplyr::summarise(value_ha = sum(value, na.rm = TRUE), .groups = "drop") %>%
         dplyr::mutate(Scenario = as.character(Scenario))
       
-      # Skeleton : garantit une ligne par scénario affiché
       skeleton <- tibble::tibble(
         Scenario = as.character(scen_show_codes)
       )
@@ -195,7 +241,9 @@ mod_harvested_stacked_server <- function(
     }) %>% bindCache(r_country(), harvest_element, scen_show_key())
     
     # -----------------------------------------------------------
-    # Graphique empilé (Plotly) — thème global R/99 + labels UI
+    # Graphique empilé (Plotly) — MODIFIÉ:
+    #  - ordre items imposé
+    #  - tooltip enrichi avec Δ% vs base-year (par item)
     # -----------------------------------------------------------
     output$stack_harv <- plotly::renderPlotly({
       da_full <- rename_harvest_items(data_harvested())
@@ -203,14 +251,13 @@ mod_harvested_stacked_server <- function(
       
       th <- get_plotly_tokens()
       
-      # Total baseline
+      # Total baseline (tous items)
       base_total <- da_full %>%
         dplyr::filter(as.character(Scenario) == scen_base) %>%
         dplyr::summarise(tot = sum(value, na.rm = TRUE), .groups = "drop") %>%
         dplyr::pull(tot)
       req(length(base_total) == 1, is.finite(base_total))
       
-      # Scénarios réellement affichés (baseline + diets effectives)
       scen_used <- c(scen_base, scen_diets_effective())
       
       da <- da_full %>%
@@ -218,10 +265,43 @@ mod_harvested_stacked_server <- function(
         droplevels()
       req(nrow(da) > 0)
       
-      # Couleurs
-      cols <- harvest_colors_for(levels(da$Item))
+      # --- Base-year value per ITEM (for Δ% tooltip)
+      base_by_item <- da_full %>%
+        dplyr::filter(as.character(Scenario) == scen_base) %>%
+        dplyr::group_by(Item) %>%
+        dplyr::summarise(base_value = sum(value, na.rm = TRUE), .groups = "drop")
       
-      # Libellés d’axe : label UI (scenario_label) au lieu du code
+      # --- FIX ITEM ORDER (legend/stack)
+      items_current <- levels(da$Item)
+      if (is.null(items_current)) items_current <- unique(as.character(da$Item))
+      
+      item_groups <- vapply(items_current, crop_group_from_item, character(1))
+      item_groups <- factor(item_groups, levels = group_order_levels)
+      
+      # --- Cereals with forced internal order
+      cereals_items <- items_current[item_groups == "Cereals"]
+      pref <- c("Wheat","Maize", "Rice", "Millet and Sorghum", "Other Cereals")
+      
+      pref <- pref[pref %in% cereals_items]  # keep only existing
+      cereals_items <- c(pref, setdiff(cereals_items, pref))
+      
+      ordered_items <- c(
+        cereals_items,
+        items_current[item_groups == "Pulses"],
+        items_current[item_groups == "Roots and tubers"],
+        items_current[item_groups == "Oilseeds"],
+        items_current[item_groups == "Perennial crops and stimulants"],
+        items_current[item_groups == "Other"]
+      )
+      
+      # apply factor levels
+      da <- da %>%
+        dplyr::mutate(Item = factor(as.character(Item), levels = ordered_items)) %>%
+        droplevels()
+      
+      # Colors follow ordered levels
+      cols <- harvest_colors_for(ordered_items)
+      
       scen_lvls_chr   <- levels(da$Scenario)
       tick_vals       <- seq_along(scen_lvls_chr)
       tick_text_label <- vapply(scen_lvls_chr, sc_label, character(1))
@@ -248,21 +328,41 @@ mod_harvested_stacked_server <- function(
           margin = list(t = 90, r = 40)
         )
       
-      # Barres empilées par culture
+
       items_vec <- levels(da$Item)
       if (is.null(items_vec)) items_vec <- unique(as.character(da$Item))
       
       for (it in items_vec) {
         sub <- da %>% dplyr::filter(Item == it)
         if (nrow(sub) == 0) next
-        
         sub <- sub %>%
+          dplyr::left_join(base_by_item, by = "Item") %>%
           dplyr::mutate(
             scen_label = sc_label(as.character(Scenario)),
+            
+            # valeur en ha formatée
             hover_value = dplyr::if_else(
               is.finite(value),
               format(round(value), big.mark = " ", scientific = FALSE, trim = TRUE),
               "—"
+            ),
+            
+            # Δ% vs SCENARIO_BASE_YEAR_CODE (ici: scen_base)
+            delta_pct = dplyr::case_when(
+              is.finite(base_value) & base_value > 0 & is.finite(value) ~ 100 * (value - base_value) / base_value,
+              TRUE ~ NA_real_
+            ),
+            hover_delta = dplyr::if_else(
+              is.finite(delta_pct),
+              paste0(ifelse(delta_pct >= 0, "+", ""), formatC(delta_pct, digits = 0, format = "f"), "%"),
+              "—"
+            ),
+            
+            # TEXTE COMPLET DU TOOLTIP (2 lignes)
+            hover_txt = paste0(
+              scen_label, "<br>",
+              it, " : ", hover_value, " ha",
+              "<br>Change vs base year (", scen_base, "): ", hover_delta
             )
           )
         
@@ -274,13 +374,14 @@ mod_harvested_stacked_server <- function(
           x = ~scen_i, y = ~value,
           name = it, legendgroup = it,
           marker = list(color = col_it),
-          text = ~scen_label, textposition = "none",
-          customdata = ~hover_value,
-          hovertemplate = paste0("%{text}<br>", it, " : %{customdata} ha<extra></extra>")
+          
+          # on met TOUT dans text et on force le tooltip à lire text
+          text = ~hover_txt,
+          textposition = "none",
+          hovertemplate = "%{text}<extra></extra>"
         )
       }
       
-      # Ligne baseline
       x_min <- 0.5
       x_max <- length(scen_lvls_chr) + 0.5
       p <- p %>%
@@ -300,7 +401,7 @@ mod_harvested_stacked_server <- function(
     })
     
     # -----------------------------------------------------------
-    # Cartes KPI
+    # Cartes KPI : inchangé
     # -----------------------------------------------------------
     output$kpi_cards <- renderUI({
       dat <- kpi_harvested()
@@ -368,9 +469,8 @@ mod_harvested_stacked_server <- function(
       div(class="u-row", do.call(tagList, cards))
     })
     
-    
     # -----------------------------------------------------------
-    # Export CSV
+    # Export CSV 
     # -----------------------------------------------------------
     output$dl_harvested_csv <- downloadHandler(
       filename = function(){
@@ -395,13 +495,14 @@ mod_harvested_stacked_server <- function(
       }
     )
     
+
     # -----------------------------------------------------------
     # Note
     # -----------------------------------------------------------
     output$note <- renderUI({
       da <- data_harvested()
       if (nrow(da) == 0) return(NULL)
-      
+
       htmltools::HTML(glue::glue(
         "<p>
         This chart shows, for the selected country, the <strong>harvested area</strong> in the
@@ -415,6 +516,6 @@ mod_harvested_stacked_server <- function(
         </p>"
       ))
     })
-    
+    invisible(NULL)
   })
 }

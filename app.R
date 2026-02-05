@@ -109,7 +109,7 @@ ui <- tagList(
     navbarPage(
       title = "GlobAgri Africa 2050",
       id    = "main_tabs",
-      
+      position = "fixed-top",
       header = tagList(
         tags$head(includeCSS("www/app.css")),
         tags$script(HTML("document.body.classList.add('app');")),
@@ -197,7 +197,9 @@ ui <- tagList(
                           )),
                       tags$br(),
                       tags$hr(class = "rule"),
-                      h1(class = "section-title", "ENERGY FLOW"),
+                      h1(class = "section-title", "BALANCE AND FLOWS"),
+                      tags$br(),
+                      mod_food_dependency_balance_ui("food_dep"),
                       tags$br(),
                       div(class = "card",
                           div(class = "card-body",
@@ -219,8 +221,6 @@ ui <- tagList(
             tags$br(),
             tags$hr(class = "rule"),
             h1(class = "section-title", "PRODUCTION AND QUANTITATIVE FLOWS"),
-            tags$br(),
-            mod_crop_structure_ui("crop_structure"),
             tags$br(),
             mod_crop_sankey_tonnes_ui("crop_sankey")
         )
@@ -244,10 +244,12 @@ ui <- tagList(
             tags$hr(class = "rule"),
             h1(class = "section-title", "LIVESTOCK EFFICENCY"),
             tags$br(),
+            mod_livestock_dairy_productivity_ui("dairy_prod"),
+            tags$br(),
             mod_animal_efficiency_ui("animal_eff"),
             tags$br(),
             tags$hr(class = "rule"),
-            h1(class = "section-title", "PRODUCTION AND USES"),
+            h1(class = "section-title", "INPUT, PRODUCTION AND USES"),
             tags$br(),
             mod_livestock_energy_share_ui("energy_share"),
             tags$br(),
@@ -255,43 +257,60 @@ ui <- tagList(
         )
       ),
       
-      # --------- ONGLET 6 : FOREST ----------
+      # --------- ONGLET 6 : Land use ----------
       tabPanel(
-        title = "Forest",
+        title = "Land use",
         div(class = "container-fluid",
             h1(class = "section-title", "LAND USE"),
             tags$br(),
-            mod_forest_stacked_ui("forest_only", height = "360px", wrap = "card"),
-            tags$br(),
-            mod_forest_share100_ui("forest_share100")
+            mod_land_use_area_change_ui("land_use_area_change")
         )
       ),
       
-      # --------- ONGLET 7 : Trade and dependency ----------
+      # --------- ONGLET 7 : Balance ----------
       tabPanel(
-        title = "Trade and dependency",
+        title = "Balance",
         div(
           class = "container-fluid",
-          h1(class = "section-title", "EMISSIONS QUANTITIES"),
+          h1(class = "section-title", "RESSOURCES AND USES QUANTITIES"),
           tags$br(),
           mod_import_quantity_ui("trade_imports"),
           tags$br(),
-          mod_energy_balance_ui("trade_balance"),
+          mod_crop_structure_ui("crop_structure"),
           tags$br(),
+          mod_energy_balance_ui("trade_balance"),
+        )
+      ),
+      
+      # --------- ONGLET 8 : dependency ----------
+      tabPanel(
+        title = "Dependency",
+        div(
+          class = "container-fluid",
+          h1(class = "section-title", "EMISSIONS QUANTITIES"),
           mod_dependancy_import_food_items_ui("dep_import_food")
         )
       ),
       
-      # --------- ONGLET 8 : Emissions ----------
+      # --------- ONGLET 9 : Emissions ----------
       tabPanel(
         title = "Emissions",
         value = "commerce",
         div(class = "container-fluid",
             h1(class = "section-title", "ENERGY"),
             tags$br(),
-            mod_land_use_change_ui("luc"),
+            mod_emissions_stacked_ui("emiss_stack"),
             tags$br(),
-            mod_emissions_stacked_ui("emiss_stack")
+            mod_land_use_change_ui("luc")
+        )
+      ),
+      
+      # --------- ONGLET 10 : Continent ----------
+      tabPanel(
+        title = "Continent",
+        div(class = "container-fluid",
+            h1(class = "section-title", "LAND USE"),
+            tags$br()
         )
       ),
       
@@ -481,6 +500,13 @@ server <- function(input, output, session){
     if (is.null(m) || !m %in% c("energy", "mass")) "energy" else m
   })
   
+  mod_food_dependency_balance_server(
+    "food_dep", 
+    fact = fact, 
+    r_country = r_country, 
+    r_scenarios = r_scenarios_effective
+    )
+  
   dsq <- mod_dsq_cards_server(
     "dsq_cards",
     fact                  = fact,
@@ -558,6 +584,13 @@ server <- function(input, output, session){
     r_scenarios = r_scenarios_effective
   )
   
+  mod_livestock_dairy_productivity_server(
+    id         = "dairy_prod",
+    fact       = fact,        
+    r_country  = r_country,   
+    r_scenarios= r_scenarios_effective
+  )
+  
   mod_animal_efficiency_server(
     "animal_eff",
     fact       = fact,
@@ -580,24 +613,18 @@ server <- function(input, output, session){
   )
   
   # =======================
-  # ONGLET 5 - FOREST
+  # ONGLET 5 - LAND USE
   # =======================
-  ret_forest <- mod_forest_stacked_server(
-    "forest_only",
-    fact = fact,
-    r_country = r_country,
-    r_scenarios = r_scenarios_effective
-  )
   
-  mod_forest_share100_server(
-    "forest_share100",
-    fact = fact,
-    r_country = r_country,
+  mod_land_use_area_change_server(
+    "land_use_area_change",
+    fact        = fact,         
+    r_country   = r_country,   
     r_scenarios = r_scenarios_effective
   )
   
   # =======================
-  # ONGLET 6 - TRADE AND DEPENDENCY
+  # ONGLET 6 - BALANCE
   # =======================
   mod_import_quantity_server(
     "trade_imports",

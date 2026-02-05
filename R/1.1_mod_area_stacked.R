@@ -397,9 +397,12 @@ mod_area_stacked_server <- function(
       
       agg %>%
         dplyr::mutate(
+          diff_abs = if (is.finite(base_total)) (value_ha - base_total) else NA_real_,
           diff_pct = if (is.finite(base_total) && base_total > 0) 100 * (value_ha - base_total) / base_total else NA_real_
         )
     }) %>% bindCache(r_country(), paste(scen_requested(), collapse = "|"))
+    
+    # --- OUTPUT - KPI cards ---------------------------------------------------------
     
     output$kpi_cards <- renderUI({
       dat <- kpi_area()
@@ -412,27 +415,45 @@ mod_area_stacked_server <- function(
         if (!is.finite(p)) return("—")
         paste0(ifelse(p >= 0, "+", ""), formatC(p, digits=0, format="f"), "%")
       }
+      fmt_abs <- function(x){
+        if (!is.finite(x)) return("—")
+        paste0(ifelse(x >= 0, "+", ""), format(round(x), big.mark=" ", scientific=FALSE, trim=TRUE))
+      }
       
       cards <- lapply(seq_len(nrow(dat)), function(i){
         sc_code <- as.character(dat$Scenario[i])
         sc_lab  <- as.character(dat$Scenario_label[i])
         val     <- dat$value_ha[i]
-        dlt     <- dat$diff_pct[i]
+        dlt_pct <- dat$diff_pct[i]
+        dlt_abs <- dat$diff_abs[i]
         
-        delta_tag <- if (!is.finite(dlt) || sc_code == scen_base) {
+        delta_pct_tag <- if (!is.finite(dlt_pct) || sc_code == scen_base) {
           NULL
-        } else if (dlt > 0) {
-          span(class="up", fmt_pct(dlt))
-        } else if (dlt < 0) {
-          span(class="down", fmt_pct(dlt))
+        } else if (dlt_pct > 0) {
+          span(class="up", fmt_pct(dlt_pct))
+        } else if (dlt_pct < 0) {
+          span(class="down", fmt_pct(dlt_pct))
         } else {
           "0%"
         }
         
-        subline_base <- if (sc_code == scen_base) {
+        abs_class <- if (!is.finite(dlt_abs) || dlt_abs == 0) "" else if (dlt_abs > 0) "up" else "down"
+        delta_abs_tag <- if (!is.finite(dlt_abs) || sc_code == scen_base) {
+          NULL
+        } else {
+          span(class = abs_class, fmt_abs(dlt_abs))
+        }
+        
+        subline_pct <- if (sc_code == scen_base) {
           p(class="u-sub", htmltools::HTML("&nbsp;"))
         } else {
-          p(class="u-sub", "Vs base year: ", delta_tag)
+          p(class="u-sub u-sub--abs", htmltools::HTML("&Delta;"), "vs base year: ", delta_pct_tag)
+        }
+        
+        subline_abs <- if (sc_code == scen_base) {
+          NULL
+        } else {
+          p(class="u-sub u-sub--abs", htmltools::HTML("&Delta;"), " vs base year: ", delta_abs_tag, " ","ha")
         }
         
         div(
@@ -441,7 +462,8 @@ mod_area_stacked_server <- function(
             class="u-box",
             p(class="u-title", sc_lab),
             p(class="u-value", fmt_num(val), span(class="u-unit","ha")),
-            subline_base
+            subline_pct,
+            subline_abs
           )
         )
       })

@@ -35,7 +35,7 @@ SCENARIO_LABELS <- c(
   "Année de base"  = "Base year",
   "Même diète"     = "Same diet",
   "Diète saine"    = "Healthy diet",
-  "Diète probable" = "Tendantial diet",
+  "Diète probable" = "Likely diet",
   "Prob-S-limitee" = "Total area stress"
 )
 

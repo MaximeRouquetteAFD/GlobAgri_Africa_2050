@@ -1,34 +1,5 @@
-# R/3.6_mod_ls_sankey_tonnes.R
+# R/3.7_mod_ls_sankey_tonnes.R
 # -------------------------------------------------------------------
-# KPI tiles + Sankey for LIVESTOCK products in TONNES or ENERGY (Gcal)
-#   - Unit toggle: Energy (Gcal) / Mass (tonnes)  (default = Energy)
-#   - Mass elements: Production / Import Quantity / Export Quantity /
-#                   Domestic supply quantity / Food / Feed / Processing /
-#                   Losses / Seed / Other uses (non-food) / Unused
-#   - Energy elements:
-#       Energy Domestic supply quantity
-#       Energy Export Quantity
-#       Energy Food
-#       Energy Feed
-#       Energy Import Quantity
-#       Energy Losses
-#       Energy Other uses (non-food)
-#       Energy Processing
-#       Energy Production
-#       Energy Unused
-#   - 'fact' stores MASS values in 1000 tonnes -> converted to tonnes (× 1000)
-#     (Energy values are assumed to be already in Gcal in fact)
-#   - Scenarios MUST come from r_scenarios() (codes, single source of truth)
-# -------------------------------------------------------------------
-
-suppressPackageStartupMessages({
-  library(shiny)
-  library(dplyr)
-  library(tidyr)
-  library(plotly)
-  library(stringr)
-  library(scales)
-})
 
 # --------- Groupes de produits animaux -------------------------------------
 LIVESTOCK_GROUPS <- list(
@@ -89,39 +60,36 @@ mod_ls_sankey_tonnes_ui <- function(id, plot_height = "500px"){
     div(class = "card",
         div(class = "card-body",
             
+            # --- Titre Sankey + toggles -------------------------------------
+            h2(textOutput(ns("title_flow"))),
+            tags$div(style="height:12px"),
+            div(class = "d-flex gap-3 flex-wrap align-items-center",
+                tags$label("Product group", `for` = ns("prod_sel"), class = "form-label mb-1"),
+                selectInput(
+                  ns("prod_sel"), NULL,
+                  choices  = names(LIVESTOCK_GROUPS),
+                  selected = "Meat (all species)",
+                  width    = "260px"
+                ),
+                radioButtons(
+                ns("unit"),
+                label    = NULL,
+                choices  = c("Mass (tonnes)" = "mass", "Energy (Gcal)" = "energy"), selected = "mass",
+                inline   = TRUE
+              ),
+              tags$div(style="height:12px")
+            ),
+            
             # --- Titre + tuiles KPI -----------------------------------------
             h2(textOutput(ns("title_domestic"))),
-            tags$div(style="height:24px"),
+            tags$div(style="height:8px"),
             uiOutput(ns("tiles")),
             tags$div(style="height:28px"),
             
-            # --- Filtres -----------------------------------------------------
-            div(
-              tags$label("Product group", `for` = ns("prod_sel"), class = "form-label mb-1"),
-              selectInput(
-                ns("prod_sel"), NULL,
-                choices  = names(LIVESTOCK_GROUPS),
-                selected = "All animal products",
-                width    = "260px"
-              )
-            ),
-            
-            # --- Titre Sankey + toggles -------------------------------------
-            h2(textOutput(ns("title_flow"))),
-            div(
-              class = "d-flex gap-3 flex-wrap align-items-center",
-              radioButtons(
-                ns("unit"),
-                label    = NULL,
-                choices  = c("Energy (Gcal)" = "energy", "Mass (tonnes)" = "mass"),
-                selected = "energy",
-                inline   = TRUE
-              ),
-              div(
-                class = "ms-auto",
-                checkboxInput(ns("as_pct"), "Show as percentage (%)",
-                              value = FALSE, width = "auto")
-              )
+            # --- Toggle % -----------------------------------------
+            div(class = "ms-auto",
+              checkboxInput(ns("as_pct"), "Show as percentage (%)",
+                            value = FALSE, width = "auto")
             ),
             
             # --- Plot + export ----------------------------------------------
@@ -145,8 +113,8 @@ mod_ls_sankey_tonnes_server <- function(
     fact,
     r_country,
     r_scenarios,
-    value_multiplier = 1,        # appliqué aux 2 unités
-    value_multiplier_energy = 1  # multiplicateur additionnel éventuel pour l'énergie
+    value_multiplier = 1,
+    value_multiplier_energy = 1
 ){
   moduleServer(id, function(input, output, session){
     
@@ -156,19 +124,21 @@ mod_ls_sankey_tonnes_server <- function(
     `%||%` <- function(a, b) if (is.null(a) || length(a)==0 || (is.numeric(a) && !is.finite(a))) b else a
     
     # dépendances attendues (config scénarios)
-    sc_code  <- if (exists("scenario_code", mode = "function")) scenario_code else function(x) stringr::str_squish(as.character(x))
-    sc_label <- if (exists("scenario_label", mode = "function")) scenario_label else function(x) sc_code(x)
+    sc_code  <- if (exists("scenario_code", mode = "function", inherits = TRUE)) scenario_code else function(x) stringr::str_squish(as.character(x))
+    sc_label <- if (exists("scenario_label", mode = "function", inherits = TRUE)) scenario_label else function(x) sc_code(x)
     
-    scen_base_year <- if (exists("SCENARIO_BASE_YEAR_CODE", inherits = TRUE)) get("SCENARIO_BASE_YEAR_CODE", inherits = TRUE) else sc_code("Année de base")
+    scen_base_year_raw <- if (exists("SCENARIO_BASE_YEAR_CODE", inherits = TRUE)) get("SCENARIO_BASE_YEAR_CODE", inherits = TRUE) else sc_code("Année de base")
+    scen_base_year     <- sc_code(scen_base_year_raw)  # ✅ code canonique
+    
     scen_levels_default <- if (exists("SCENARIO_LEVELS_DEFAULT", inherits = TRUE)) get("SCENARIO_LEVELS_DEFAULT", inherits = TRUE) else NULL
     scen_ref <- if (exists("SCENARIO_REF_CODE", inherits = TRUE)) get("SCENARIO_REF_CODE", inherits = TRUE) else NULL
     
     unit_mode <- reactive({
-      u <- input$unit %||% "energy"
-      if (!u %in% c("energy","mass")) u <- "energy"
+      u <- input$unit %||% "mass"
+      if (!u %in% c("energy","mass")) u <- "mass"
       u
     })
-    unit_label <- reactive(if (identical(unit_mode(), "energy")) "Gcal" else "tonnes")
+    unit_label  <- reactive(if (identical(unit_mode(), "energy")) "Gcal" else "tonnes")
     unit_symbol <- reactive(if (identical(unit_mode(), "energy")) "Gcal" else "t")
     
     unit_multiplier <- reactive({
@@ -179,6 +149,36 @@ mod_ls_sankey_tonnes_server <- function(
         as.numeric(value_multiplier %||% 1) * 1000
       }
     })
+    
+    # -----------------------------------------------------------------------
+    # ✅ (1) Restriction des product groups quand unit = mass
+    # -----------------------------------------------------------------------
+    .choices_by_unit <- function(um){
+      all <- names(LIVESTOCK_GROUPS)
+      if (identical(um, "mass")) {
+        # ✅ demande : exclure ces 2 groupes en mass
+        setdiff(all, c("All animal products", "Ruminant meat & dairy"))
+      } else {
+        all
+      }
+    }
+    
+    observeEvent(unit_mode(), {
+      um <- unit_mode()
+      ch <- .choices_by_unit(um)
+      cur <- isolate(input$prod_sel) %||% ""
+      
+      if (!(cur %in% ch)) {
+        cur <- ch[1] %||% ""
+      }
+      
+      updateSelectInput(
+        session,
+        "prod_sel",
+        choices  = ch,
+        selected = cur
+      )
+    }, ignoreInit = FALSE)
     
     # -----------------------------------------------------------------------
     # Elements + mappings (unit-aware)
@@ -227,12 +227,12 @@ mod_ls_sankey_tonnes_server <- function(
     # Sélection produits + titres
     # -----------------------------------------------------------------------
     items_selected <- reactive({
-      grp <- input$prod_sel %||% "All animal products"
-      LIVESTOCK_GROUPS[[grp]] %||% LIVESTOCK_GROUPS[["All animal products"]]
+      grp <- input$prod_sel %||% "Meat (all species)"
+      LIVESTOCK_GROUPS[[grp]] %||% LIVESTOCK_GROUPS[["Meat (all species)"]]
     })
     
     label_selected <- reactive({
-      grp <- input$prod_sel %||% "All animal products"
+      grp <- input$prod_sel %||% "Meat (all species)"
       LIVESTOCK_LABELS[[grp]] %||% "animal products"
     })
     
@@ -274,7 +274,7 @@ mod_ls_sankey_tonnes_server <- function(
       cur <- r_selected()
       if (!is.null(cur) && cur %in% avail) return()
       
-      base <- sc_code(scen_base_year)
+      base <- scen_base_year
       ref  <- if (!is.null(scen_ref)) sc_code(scen_ref) else NA_character_
       
       pick <- if (base %in% avail) {
@@ -295,7 +295,7 @@ mod_ls_sankey_tonnes_server <- function(
     }, ignoreInit = TRUE)
     
     # -----------------------------------------------------------------------
-    # KPI DS (unit-aware) + delta vs baseline year
+    # KPI DS (unit-aware) + delta vs baseline year (SCENARIO_BASE_YEAR_CODE)
     # -----------------------------------------------------------------------
     sum_by_scen <- function(sc, country, um){
       ds_el <- FACTMAP[[um]]$DS
@@ -320,30 +320,37 @@ mod_ls_sankey_tonnes_server <- function(
       )
     })
     
+    # ✅ FIX % erronés : baseline doit dépendre (country + prod + unit) (sinon cache faux)
     baseline_value <- reactive({
       req(r_country(), unit_mode())
       (sum_by_scen(scen_base_year, r_country(), unit_mode()) * unit_multiplier()) %||% 0
-    }) %>% bindCache(sc_code(r_country() %||% ""))
+    }) %>% shiny::bindCache(
+      sc_code(r_country() %||% ""),
+      input$prod_sel %||% "",
+      unit_mode() %||% ""
+    )
     
     tiles_values <- reactive({
       rg <- r_country(); req(rg, unit_mode())
       scs <- r_scen_levels()
       mult <- unit_multiplier()
       setNames(lapply(scs, function(sc) sum_by_scen(sc, rg, unit_mode()) * mult), scs)
-    }) %>% bindCache(key_tiles())
+    }) %>% shiny::bindCache(key_tiles())
     
     tiles_deltas <- reactive({
       base <- baseline_value()
       vals <- tiles_values()
+      
       setNames(
         lapply(names(vals), function(sc){
           v <- vals[[sc]] %||% NA_real_
+          # ✅ baseline = SCENARIO_BASE_YEAR_CODE (scen_base_year)
           if (identical(sc, scen_base_year)) return(NA_real_)
           if (is.finite(base) && base > 0 && is.finite(v)) 100 * (v - base) / base else NA_real_
         }),
         names(vals)
       )
-    }) %>% bindCache(key_tiles())
+    }) %>% shiny::bindCache(key_tiles())
     
     # -----------------------------------------------------------------------
     # Tuiles KPI
@@ -434,7 +441,7 @@ mod_ls_sankey_tonnes_server <- function(
       um  <- unit_mode();   req(um %in% c("mass","energy"))
       
       elements_needed <- ELEMENTS_BY_UNIT[[um]] %||% character(0)
-      validate(need(length(elements_needed) > 0, "No elements configured for this unit."))
+      validate(shiny::need(length(elements_needed) > 0, "No elements configured for this unit."))
       
       dat0 <- fact %>%
         dplyr::filter(
@@ -452,7 +459,7 @@ mod_ls_sankey_tonnes_server <- function(
         dplyr::filter(stringr::str_trim(Element) == ds_el, is.finite(Value)) %>%
         dplyr::summarise(year_used = suppressWarnings(max(Year, na.rm = TRUE))) %>%
         dplyr::pull(year_used)
-      validate(need(is.finite(year_used), "Aucune année disponible pour ce scénario / cette unité."))
+      validate(shiny::need(is.finite(year_used), "Aucune année disponible pour ce scénario / cette unité."))
       
       tot <- dat0 %>%
         dplyr::filter(Year == year_used) %>%
@@ -477,7 +484,6 @@ mod_ls_sankey_tonnes_server <- function(
         uses[[uses_nodes[i]]] <- mult * g(uses_fact[i])
       }
       
-      # Décomposition des flux (Production/Imports -> Exports/Domestic supply)
       exp_from_prod    <- max(0, min(P, E))
       exp_from_imp     <- max(0, E - exp_from_prod)
       to_dom_from_prod <- max(0, P - exp_from_prod)
@@ -486,7 +492,6 @@ mod_ls_sankey_tonnes_server <- function(
       DS_calc <- to_dom_from_prod + to_dom_from_imp
       if (is.finite(DS) && abs(DS_calc - DS) > 1e-6) DS <- DS_calc
       
-      # Balance interne: Unused ferme la balance (si résiduel positif)
       uses_no_unused <- setdiff(uses_nodes, "Unused")
       residual <- DS - sum(uses[uses_no_unused], na.rm = TRUE)
       
@@ -510,7 +515,7 @@ mod_ls_sankey_tonnes_server <- function(
       }
       
       edges <- edges %>% dplyr::filter(is.finite(value), value > 0)
-      validate(need(nrow(edges) > 0, "No flow available for this product group and scenario."))
+      validate(shiny::need(nrow(edges) > 0, "No flow available for this product group and scenario."))
       
       nodes_present <- unique(c(edges$from, edges$to))
       node_order <- if (identical(um, "energy")) {
@@ -522,7 +527,6 @@ mod_ls_sankey_tonnes_server <- function(
       }
       nodes_core <- node_order[node_order %in% nodes_present]
       
-      # Ancre invisible pour Food à droite (stabilité hover)
       nds <- c(nodes_core, "Food__anchor")
       id  <- stats::setNames(seq_along(nds) - 1L, nds)
       
@@ -584,7 +588,7 @@ mod_ls_sankey_tonnes_server <- function(
           in_DS_prod = to_dom_from_prod, in_DS_imp = to_dom_from_imp
         )
       )
-    }) %>% bindCache(key_sankey())
+    }) %>% shiny::bindCache(key_sankey())
     
     # -----------------------------------------------------------------------
     # Plotly Sankey
@@ -597,7 +601,7 @@ mod_ls_sankey_tonnes_server <- function(
       val_u <- sd$val_u
       as_pct <- isTRUE(input$as_pct)
       
-      th <- if (exists("get_plotly_tokens", mode = "function")) get_plotly_tokens() else list(
+      th <- if (exists("get_plotly_tokens", mode = "function", inherits = TRUE)) get_plotly_tokens() else list(
         font_color     = "#111827",
         muted_color    = "#6B7280",
         axis_linecolor = "rgba(0,0,0,.18)"
@@ -725,7 +729,8 @@ mod_ls_sankey_tonnes_server <- function(
           y = sd$node_y,
           pad = 22,
           thickness = 32,
-          line = list(color = node_border_col, width = 0.5)
+          line = list(color = node_border_col, width = 0.5),
+          hovertemplate = "%{label}<extra></extra>"
         ),
         link = list(
           source = src,
@@ -741,7 +746,7 @@ mod_ls_sankey_tonnes_server <- function(
         ) %>%
         plotly::config(displaylogo = FALSE)
       
-      if (exists("plotly_apply_global_theme", mode = "function")) {
+      if (exists("plotly_apply_global_theme", mode = "function", inherits = TRUE)) {
         p <- plotly_apply_global_theme(p, bg = "transparent", grid = "none")
       }
       
@@ -756,7 +761,7 @@ mod_ls_sankey_tonnes_server <- function(
         sprintf("sankey_livestock_%s_%s_%s_%s.csv",
                 gsub("\\s+","_", r_country() %||% "country"),
                 gsub("\\s+","_", sc_label(r_selected() %||% "scenario")),
-                gsub("\\s+","_", input$prod_sel %||% "All_animal_products"),
+                gsub("\\s+","_", input$prod_sel %||% "product_group"),
                 unit_mode() %||% "unit")
       },
       content = function(file){
@@ -767,7 +772,7 @@ mod_ls_sankey_tonnes_server <- function(
           Scenario_code  = sd$scenario_code,
           Scenario_label = sd$scenario_label,
           Year           = sd$year_used,
-          Product        = input$prod_sel %||% "All animal products",
+          Product        = input$prod_sel %||% "product_group",
           Unit           = sd$unit_label,
           Source         = nds[src + 1],
           Target         = nds[trg + 1],
@@ -781,7 +786,7 @@ mod_ls_sankey_tonnes_server <- function(
     )
     
     # -----------------------------------------------------------------------
-    # Note explicative (mise à jour)
+    # Note explicative
     # -----------------------------------------------------------------------
     output$note <- renderUI({
       sd <- try(make_sankey_data(), silent = TRUE)
@@ -790,13 +795,14 @@ mod_ls_sankey_tonnes_server <- function(
       }
       
       unit_txt <- if (identical(sd$unit_mode, "energy")) "energy (Gcal)" else "mass (tonnes)"
+      base_lbl <- sc_label(scen_base_year)
       
       txt <- glue::glue(
         "<p>
         This figure shows, for the selected country and product group, how <strong>livestock products</strong>
-        (meat, dairy, eggs, aquatic animal products) flow through the agri-food system in <strong>{unit_txt}</strong>.<br>
+        flow through the agri-food system in <strong>{unit_txt}</strong>.<br>
         The tiles above the diagram indicate, for each scenario, the total <strong>domestic supply</strong> of the selected products
-        in <strong>{sd$unit_label}</strong>, together with the percentage change compared with the baseline.
+        in <strong>{sd$unit_label}</strong>, together with the percentage change compared with <strong>{base_lbl}</strong>.
         </p>
         <p>
         The Sankey diagram below details the selected scenario ({sd$scenario_label}, {sd$year_used}):

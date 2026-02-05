@@ -86,7 +86,7 @@ mod_energy_items_server <- function(
             
             div(
               class = "u-card u-card--flat diet-card",
-              div(class = "diet-card-title", "Tendential diet"),
+              div(class = "diet-card-title", "Likely diet"),
               div(
                 class = "diet-card-text",
                 "This diet is based on projections of Alexandratos & Bruinsma (2012), which rely on economic growth, inequalities and undernourishment. It describes a median trajectory grounded in historical trends, without assuming a voluntary change in dietary habits."

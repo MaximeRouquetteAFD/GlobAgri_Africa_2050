@@ -1,19 +1,4 @@
 # R/6.1_mod_land_use_change.R
-# ----------------------------------------------------------
-# Land use change (surfaces) et émissions associées
-#  - Pour les scénarios affichés par l'app (r_scenarios, codes) :
-#      * Δ Cropland (ha) vs baseline (Année de base, BASE_YEAR)
-#      * Δ Pastures and meadows (ha) vs baseline
-#      * Emissions "Land use change" (tCO2e) en TARGET_YEAR
-#
-# SCENARIOS (IMPORTANT):
-# - No local scenario reconstruction, no masking, no "Avec contrainte" logic.
-# - The module uses r_scenarios() (codes) as single source of truth,
-#   optionally intersected with scenarios present in fact for the country/elements.
-# - Scenario order is centralized via SCENARIO_LEVELS_DEFAULT.
-# - UI display uses scenario_label(code) only.
-# - bindCache keys must be scalar -> scen_show_key() (preferred) or local scalar fallback.
-# ----------------------------------------------------------
 
 # Palette spécifique au module Land use change
 LAND_USE_CHANGE_COLORS <- c(

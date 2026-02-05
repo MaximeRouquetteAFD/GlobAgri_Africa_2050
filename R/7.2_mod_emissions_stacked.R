@@ -1,4 +1,4 @@
-# R/6.2_mod_emissions_stacked.R
+# R/7.2_mod_emissions_stacked.R
 # ----------------------------------------------------------
 # Agricultural GHG emissions by scenario (without land use change)
 #

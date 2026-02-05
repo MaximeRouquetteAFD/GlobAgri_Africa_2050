@@ -1,4 +1,4 @@
-# R/5.2_mod_energy_balance.R
+# R/5.3_mod_energy_balance.R
 # -------------------------------------------------
 # Energy balance by scenario
 #  - 2 bars per scenario:
@@ -15,7 +15,7 @@ mod_energy_balance_ui <- function(id, wrap_in_card = TRUE){
   ns <- NS(id)
   
   content <- tagList(
-    h3("Energy balance by scenario (in % of Gcal)"),
+    h2("Energy balance by scenario (in % of Gcal)"),
     
     uiOutput(ns("elements_selector")),
     plotly::plotlyOutput(ns("plot"), height = "390px"),

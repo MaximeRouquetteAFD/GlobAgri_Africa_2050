@@ -1,4 +1,4 @@
-# R/2.4_mod_crop_structure.R
+# R/5.2_mod_crop_structure.R
 # -------------------------------------------------------------------
 # Shares of crop groups in Production / Import Quantity
 # (one pie chart per scenario, incl. base year if present)
@@ -389,7 +389,7 @@ mod_crop_structure_server <- function(
     
     output$title <- renderText({
       u <- if (identical(unit_mode(), "energy")) "Energy (Gcal)" else "Mass (tons)"
-      paste0("Structure of crop production and imports - ", u)
+      paste0("Structure of crop production or imports - ", u)
     })
     
     # --- Pies ---------------------------------------------------------------

@@ -1,27 +1,4 @@
-# R/2.5_mod_crop_sankey_tonnes.R
-# -------------------------------------------------------------------
-# KPI tiles + Sankey for CROP products in TONNES *or* ENERGY (Gcal)
-#   - Toggle unit: Energy (Gcal) / Mass (tonnes)  (default = Energy)
-#   - Mass elements (fact): Production / Import Quantity / Export Quantity /
-#                           Domestic supply quantity / Food / Feed / Losses /
-#                           Seed / Other uses (non-food)
-#   - Energy elements (fact):
-#       Energy Domestic supply quantity
-#       Energy Export Quantity
-#       Energy Food
-#       Energy Import Quantity
-#       Energy Losses
-#       Energy Other uses (non-food)
-#       Energy Processing
-#       Energy Production
-#       Energy Unused
-#
-# SCENARIO RULES (project-wide):
-# - Le module NE reconstruit aucune logique historique de scénarios (pas de harvested_core, pas de fallback).
-# - Il utilise r_scenarios() (codes) comme source unique, et intersecte uniquement avec les scénarios réellement présents
-#   dans fact pour le pays + produit + élément nécessaire (selon unité).
-# - En interne: codes (fact$Scenario). En UI: scenario_label(code) uniquement.
-# - Ordre: SCENARIO_LEVELS_DEFAULT pour factor(levels=...), puis filtrage.
+# R/2.4_mod_crop_sankey_tonnes.R
 # -------------------------------------------------------------------
 
 suppressPackageStartupMessages({
@@ -92,32 +69,33 @@ mod_crop_sankey_tonnes_ui <- function(id, plot_height = "500px"){
       class = "card",
       div(
         class = "card-body",
-      
-        # --- Titre + tuiles KPI -----------------------------------------
-        h2(textOutput(ns("title_domestic"))),
-        tags$div(style="height:24px"),
-        uiOutput(ns("tiles")),
-        tags$div(style="height:28px"),
         
         # --- Filtres -----------------------------------------------------
         div(
           h2(textOutput(ns("title_flow"))),
-          # Unit toggle (default Energy)
+          tags$div(style="height:15px"),
+          tags$label("Product group", `for` = ns("prod_sel"), class = "form-label mb-1"),
+          selectInput(
+            ns("prod_sel"), NULL,
+            choices  = names(CROP_GROUPS),
+            selected = "All crop products",
+            width    = "220px"),
           radioButtons(
             ns("unit"),
             label    = NULL,
             choices  = c("Energy (Gcal)" = "energy", "Mass (tonnes)" = "mass"),
             selected = "energy",
             inline   = TRUE),
-          tags$label("Product group", `for` = ns("prod_sel"), class = "form-label mb-1"),
-          selectInput(
-            ns("prod_sel"), NULL,
-            choices  = names(CROP_GROUPS),
-            selected = "All crop products",
-            width    = "220px")
+          tags$div(style="height:15px")
         ),
+      
+        # --- Titre + tuiles KPI -----------------------------------------
+        h2(textOutput(ns("title_domestic"))),
+        tags$div(style="height:10px"),
+        uiOutput(ns("tiles")),
+        tags$div(style="height:15px"),
         
-        # --- Titre Sankey + toggles -------------------------------------
+        # --- Toggle % -----------------------------------------
         div(
           class = "d-flex gap-3 flex-wrap align-items-center",
           div(
@@ -145,7 +123,6 @@ mod_crop_sankey_tonnes_ui <- function(id, plot_height = "500px"){
     )
   )
 }
-
 # ---------------------------------------------------------------------------
 # Server
 # ---------------------------------------------------------------------------
@@ -193,11 +170,27 @@ mod_crop_sankey_tonnes_server <- function(
       x
     }
     
+    if (!exists("APP_TRANSPARENT", inherits = TRUE)) {
+      APP_TRANSPARENT <- "rgba(0,0,0,0)"
+    }
+    
     if (!exists("plotly_theme_transparent", mode = "function")) {
       plotly_theme_transparent <- function(p = NULL){
         if (is.null(p)) return(NULL)
         plotly::layout(p, paper_bgcolor = "rgba(0,0,0,0)", plot_bgcolor = "rgba(0,0,0,0)")
       }
+    }
+    
+    # Domestic supply value as displayed by Sankey (same logic as make_sankey_data)
+    calc_ds_display <- function(P, M, E){
+      P <- pmax(0, P); M <- pmax(0, M); E <- pmax(0, E)
+      
+      exp_from_prod    <- pmax(0, pmin(P, E))
+      exp_from_imp     <- pmax(0, E - exp_from_prod)
+      to_dom_from_prod <- pmax(0, P - exp_from_prod)
+      to_dom_from_imp  <- pmax(0, M - exp_from_imp)
+      
+      to_dom_from_prod + to_dom_from_imp
     }
     
     # --- Elements by unit -----------------------------------------------
@@ -228,7 +221,7 @@ mod_crop_sankey_tonnes_server <- function(
         M  = "Import Quantity",
         E  = "Export Quantity",
         DS = "Domestic supply quantity",
-        uses = c("Feed","Food","Processing","Losses","Seed","Other uses (non-food)","Unused") # <-- AJOUT Unused
+        uses = c("Feed","Food","Processing","Losses","Seed","Other uses (non-food)","Unused")
       ),
       energy = list(
         P  = "Energy Production",
@@ -242,7 +235,7 @@ mod_crop_sankey_tonnes_server <- function(
     
     NODEMAP <- list(
       mass = list(
-        uses_nodes = c("Feed","Food","Processing","Losses","Seed","Other uses (non-food)","Unused"), # <-- AJOUT Unused
+        uses_nodes = c("Feed","Food","Processing","Losses","Seed","Other uses (non-food)","Unused"),
         uses_fact  = c("Feed","Food","Processing","Losses","Seed","Other uses (non-food)","Unused")
       ),
       energy = list(
@@ -251,7 +244,6 @@ mod_crop_sankey_tonnes_server <- function(
                        "Energy Other uses (non-food)","Energy Unused")
       )
     )
-    
     
     unit_mode <- reactive({
       u <- input$unit %||% "energy"
@@ -293,6 +285,12 @@ mod_crop_sankey_tonnes_server <- function(
     })
     
     baseline_code <- reactive({
+      # Prefer explicit config if available
+      if (exists("SCENARIO_BASE_YEAR_CODE", inherits = TRUE)) {
+        b <- as.character(get("SCENARIO_BASE_YEAR_CODE", inherits = TRUE))
+        if (nzchar(b)) return(b)
+      }
+      # Fallback: first scenario in default order intersecting the provided list
       b <- intersect(SCENARIO_LEVELS_DEFAULT, unique(as.character(r_scenarios())))
       b <- b[!is.na(b) & nzchar(b)]
       b[1] %||% NA_character_
@@ -423,31 +421,55 @@ mod_crop_sankey_tonnes_server <- function(
     }, ignoreInit = TRUE)
     
     # -----------------------------------------------------------------------
-    # KPI (domestic supply + delta vs baseline) selon unité
+    # KPI (domestic supply + delta vs baseline)
+    # IMPORTANT: tiles now use DS_display = same as Sankey node (from P/M/E)
     # -----------------------------------------------------------------------
     tiles_values <- reactive({
       rg   <- r_country()
       scs  <- order_scen_by_config(scen_available())
       req(nzchar(rg), length(scs) > 0, unit_mode())
       
-      ds_el <- FACTMAP[[unit_mode()]]$DS
-      mult  <- unit_multiplier()
+      um   <- unit_mode()
+      mult <- unit_multiplier()
       
-      df <- fact %>%
-        filter(
+      yrs_join <- years_by_scenario() %>%
+        dplyr::transmute(Scenario = Scenario_code, year_used)
+      
+      elP <- FACTMAP[[um]]$P
+      elM <- FACTMAP[[um]]$M
+      elE <- FACTMAP[[um]]$E
+      el_need <- c(elP, elM, elE)
+      
+      df0 <- fact %>%
+        dplyr::filter(
           Region   == rg,
           Scenario %in% scs,
           Item     %in% items_selected(),
-          stringr::str_trim(Element) == ds_el
+          stringr::str_trim(Element) %in% el_need,
+          Year     %in% yrs_join$year_used,
+          (is.na(System) | System == "" | System == "NA" | trimws(System) == ""),
+          (is.na(Animal) | Animal == "" | Animal == "NA" | trimws(Animal) == "")
         ) %>%
-        group_by(Scenario) %>%
-        summarise(val_raw = sum(Value, na.rm = TRUE), .groups = "drop") %>%
-        mutate(Scenario = as.character(Scenario)) %>%
-        right_join(tibble::tibble(Scenario = scs), by = "Scenario") %>%
-        mutate(val_raw = coalesce(val_raw, 0))
+        dplyr::inner_join(yrs_join, by = "Scenario") %>%
+        dplyr::filter(Year == year_used) %>%
+        dplyr::mutate(Element = stringr::str_trim(Element)) %>%
+        dplyr::group_by(Scenario, Element) %>%
+        dplyr::summarise(val = sum(Value, na.rm = TRUE), .groups = "drop") %>%
+        tidyr::pivot_wider(names_from = Element, values_from = val, values_fill = 0)
       
-      vals <- setNames(as.list(df$val_raw * mult), df$Scenario) # tonnes or Gcal
-      vals
+      df <- tibble::tibble(Scenario = scs) %>%
+        dplyr::left_join(df0, by = "Scenario")
+      
+      for (nm in el_need) if (!nm %in% names(df)) df[[nm]] <- 0
+      df <- df %>% dplyr::mutate(dplyr::across(all_of(el_need), ~ tidyr::replace_na(.x, 0)))
+      
+      P <- mult * as.numeric(df[[elP]])
+      M <- mult * as.numeric(df[[elM]])
+      E <- mult * as.numeric(df[[elE]])
+      
+      DS_display <- calc_ds_display(P, M, E)
+      
+      setNames(as.list(DS_display), df$Scenario)
     }) %>% bindCache(cache_key_tiles())
     
     baseline_value <- reactive({
@@ -474,7 +496,7 @@ mod_crop_sankey_tonnes_server <- function(
     }) %>% bindCache(cache_key_tiles())
     
     # -----------------------------------------------------------------------
-    # Tuiles KPI (affichent exactement r_scenarios() intersect données dispo)
+    # Tuiles KPI
     # -----------------------------------------------------------------------
     output$tiles <- renderUI({
       ns <- session$ns
@@ -595,6 +617,7 @@ mod_crop_sankey_tonnes_server <- function(
       
       DS_calc <- to_dom_from_prod + to_dom_from_imp
       if (is.finite(DS_calc) && is.finite(DS) && abs(DS_calc - DS) > 1e-6) DS <- DS_calc
+      
       if (identical(um, "mass")) {
         
         uses_no_unused <- sum(use_vals[c("Feed","Food","Processing","Losses","Seed","Other uses (non-food)")], na.rm = TRUE)
@@ -605,7 +628,6 @@ mod_crop_sankey_tonnes_server <- function(
         if (is.finite(residual) && residual > tol) {
           use_vals[["Unused"]] <- residual
         } else {
-          # si l'écart est très faible ou négatif, on ne force pas (évite flux négatifs)
           use_vals[["Unused"]] <- 0
         }
         
@@ -644,7 +666,7 @@ mod_crop_sankey_tonnes_server <- function(
           "Food","Feed","Losses","Processing","Other uses (non-food)","Unused")
       } else {
         c("Production","Imports","Exports","Domestic supply",
-          "Feed","Food","Processing","Losses","Seed","Other uses (non-food)","Unused")  # <-- AJOUT Unused
+          "Feed","Food","Processing","Losses","Seed","Other uses (non-food)","Unused")
       }
       
       nodes_core <- node_order[node_order %in% nodes_present]
@@ -673,7 +695,7 @@ mod_crop_sankey_tonnes_server <- function(
       val_u <- c(val_u, eps)
       pct_link <- c(pct_link, NA_real_)
       
-      # Positions fixes (mêmes repères, ajustés si energy)
+      # Positions fixes
       x_map <- c("Production"=0.05, "Imports"=0.05,
                  "Exports"=0.50, "Domestic supply"=0.50,
                  "Feed"=0.93, "Food"=0.93, "Losses"=0.93,
@@ -691,7 +713,7 @@ mod_crop_sankey_tonnes_server <- function(
         c("Production"=0.20, "Imports"=0.70,
           "Exports"=0.88, "Domestic supply"=0.40,
           "Feed"=0.12, "Food"=0.48, "Processing"=0.62, "Losses"=0.72,
-          "Seed"=0.82, "Other uses (non-food)"=0.90, "Unused"=0.96,  # <-- AJOUT Unused
+          "Seed"=0.82, "Other uses (non-food)"=0.90, "Unused"=0.96,
           "Food__anchor"=0.48)
       }
       
@@ -730,7 +752,17 @@ mod_crop_sankey_tonnes_server <- function(
       
       stopifnot(is.numeric(val_u), length(val_u) == length(src))
       
-      th <- get_plotly_tokens()
+      th <- if (exists("get_plotly_tokens", mode = "function", inherits = TRUE)) {
+        get_plotly_tokens()
+      } else {
+        list(
+          font_color    = "#111827",
+          node_border   = "rgba(255,255,255,0.25)",
+          hover_bg      = "rgba(17,24,39,0.95)",
+          hover_font    = "#FFFFFF",
+          baseline_color= "rgba(255,255,255,0.55)"
+        )
+      }
       
       node_cols <- if (exists("sankey_node_colors_for", inherits = TRUE)) {
         cols <- try(sankey_node_colors_for(nds), silent = TRUE)
@@ -875,7 +907,12 @@ mod_crop_sankey_tonnes_server <- function(
         ) %>%
         plotly::config(displaylogo = FALSE)
       
-      p <- plotly_apply_global_theme(p, bg = "transparent", grid = "none")
+      if (exists("plotly_apply_global_theme", mode = "function", inherits = TRUE)) {
+        p <- plotly_apply_global_theme(p, bg = "transparent", grid = "none")
+      } else {
+        p <- plotly_theme_transparent(p)
+      }
+      
       p
     }) %>% bindCache(cache_key_plot())
     
@@ -894,7 +931,6 @@ mod_crop_sankey_tonnes_server <- function(
         sd  <- make_sankey_data()
         nds <- sd$nodes; src <- sd$src; trg <- sd$trg
         
-        # Keep backward-compat columns for mass; add generic Value + Unit
         out <- tibble::tibble(
           Country        = r_country(),
           Scenario_code  = sd$scenario_code,
@@ -926,27 +962,28 @@ mod_crop_sankey_tonnes_server <- function(
       
       txt <- glue::glue(
         "<p>
-    This figure shows, for the selected country and product group, how <strong>crop products</strong>
-    flow through the agri-food system in <strong>{unit_txt}</strong>.<br>
-    The tiles above the diagram indicate, for each scenario, the total <strong>domestic supply</strong>
-    of the selected products in <strong>{sd$unit_label}</strong>, together with the percentage change compared with the baseline.
-    </p>
-    <p>
-    The Sankey diagram below details the selected scenario ({sd$scenario_label}, {sd$year_used}):
-    flows from <em>Production</em> and <em>Imports</em> to <em>Domestic supply</em> and <em>Exports</em>, and then to final uses
-    (e.g. <em>Food</em>, <em>Feed</em>, <em>Processing</em>, <em>Losses</em>, <em>Seed</em>, <em>Other uses (non-food)</em>, <em>Unused</em>).
-    </p>
-    <p>
-    When <strong>\"Show as percentage (%)\"</strong> is ticked, node and link labels are expressed as shares of reference poles
-    (exports relative to total exports; other links relative to domestic supply). Tooltips always include underlying volumes in <strong>{sd$unit_label}</strong>.
-    </p>
-    <p>
-    <em>Unused</em> is displayed as the balancing item when needed: it captures the residual between <em>Domestic supply</em> and the sum of other internal uses.
-    </p>"
+        This figure shows, for the selected country and product group, how <strong>crop products</strong>
+        flow through the agri-food system in <strong>{unit_txt}</strong>.<br>
+        The tiles above the diagram indicate, for each scenario, the total <strong>domestic supply</strong>
+        of the selected products in <strong>{sd$unit_label}</strong>, together with the percentage change compared with the baseline.
+        </p>
+        <p>
+        The Sankey diagram below details the selected scenario ({sd$scenario_label}, {sd$year_used}):
+        flows from <em>Production</em> and <em>Imports</em> to <em>Domestic supply</em> and <em>Exports</em>, and then to final uses
+        (e.g. <em>Food</em>, <em>Feed</em>, <em>Processing</em>, <em>Losses</em>, <em>Seed</em>, <em>Other uses (non-food)</em>, <em>Unused</em>).
+        </p>
+        <p>
+        When <strong>\"Show as percentage (%)\"</strong> is ticked, node and link labels are expressed as shares of reference poles
+        (exports relative to total exports; other links relative to domestic supply). Tooltips always include underlying volumes in <strong>{sd$unit_label}</strong>.
+        </p>
+        <p>
+        <em>Unused</em> is displayed as the balancing item when needed: it captures the residual between <em>Domestic supply</em> and the sum of other internal uses.
+        </p>"
       )
       
       htmltools::HTML(txt)
     })
     
+    invisible(NULL)
   })
 }

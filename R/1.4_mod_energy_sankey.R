@@ -1,21 +1,5 @@
-# R/08_mod_energy_sankey.R
-# ------------------------------------------------------------------------------
-# Global flow Sankey (crops + livestock)
-#   - 2 modes :
-#       * "energy" : Gcal (Energy Production, Energy Food, etc., Item == "All")
-#       * "mass"   : tonnes (Production, Food, etc., somme de TOUS les items
-#                    pour chaque élément, valeurs en 1000 t -> converties en t)
-#   - Les nœuds / liens ont la même structure que les sankeys végétal / animal
-#   - Le scénario utilisé est celui renvoyé par r_selected_scenario (onglet
-#     Livestock / crops)
-#
-# MODIF (2025-12-23) :
-#   - Correction des % affichés sur les nœuds "Production" et "Imports" en mode
-#     "Show as percentage (%)" :
-#       => part de (Production + Imports) plutôt que part de Domestic supply.
-#   - Cohérence appliquée aussi au hover et à l'export CSV.
-#   - Note explicative mise à jour.
-# ------------------------------------------------------------------------------
+# R/1.4_mod_energy_sankey.R
+# ----------------------------------------------------------------
 
 mod_energy_sankey_ui <- function(id){
   ns <- NS(id)

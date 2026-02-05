@@ -394,4 +394,6 @@ h6,.h6{font-size:var(--title-xs); font-weight:var(--title-weight);margin:var(--t
 .app .diet-card-title{font-size: 18px; font-weight: 600; margin: 0 0 6px 0; color: var( --subtitle-color); text-align: center;}
 .app .diet-card-text{font-size: 12px; line-height: 1.4; color: var( --subtitle-color);}
 
+/* Espace pour ne pas masquer le haut des pages sous la navbar fixe */
+.app-page {padding-top: 50px;}
 

@@ -79,13 +79,6 @@ mod_import_quantity_server <- function(
   moduleServer(id, function(input, output, session){
     ns <- session$ns
     
-    # ------------------------------------------------------------------
-    # Dependencies expected (global, from R/0.0_config_scenarios.R)
-    # - scenario_code()
-    # - scenario_label()
-    # - SCENARIO_LEVELS_DEFAULT
-    # - SCENARIO_BASE_YEAR_CODE (expected in config; fallback handled)
-    # ------------------------------------------------------------------
     shiny::validate(
       shiny::need(exists("scenario_code", mode = "function"), "Missing scenario_code()."),
       shiny::need(exists("scenario_label", mode = "function"), "Missing scenario_label()."),
@@ -126,12 +119,6 @@ mod_import_quantity_server <- function(
       paste(sc, collapse = "|")
     })
     
-    # ------------------------------------------------------------------
-    # Stable scenario levels for THIS module:
-    # - global order: SCENARIO_LEVELS_DEFAULT
-    # - restricted to wanted (r_scenarios)
-    # - restricted to scenarios present in fact for this country & scope
-    # ------------------------------------------------------------------
     scen_levels_effective <- shiny::reactive({
       req(r_country())
       

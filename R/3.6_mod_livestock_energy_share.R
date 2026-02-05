@@ -1,32 +1,19 @@
-# R/3.5_mod_livestock_energy_share.R
+# R/3.6_mod_livestock_energy_share.R
 # -------------------------------------------------
-# Share of resources allocated to livestock
-# (Energy Feed vs Energy Domestic supply quantity)
-#
-# Scenario logic (aligned):
-# - Filter scenarios: EXACT r_scenarios() (codes) ∩ present
-# - Order: SCENARIO_LEVELS_DEFAULT + deterministic append of unknown codes
-# - Display: scenario_label(code) if available; otherwise code
-# -------------------------------------------------
-
-suppressPackageStartupMessages({
-  library(shiny)
-  library(dplyr)
-  library(tidyr)
-  library(plotly)
-  library(scales)
-  library(readr)
-  library(glue)
-  library(stringr)
-})
 
 `%||%` <- function(x, y) if (is.null(x) || length(x) == 0) y else x
+
+# ---- EDIT HERE if your Element names differ ------------------------------
+EL_FOOD  <- "Energy Food"
+EL_FEED  <- "Energy Feed"
+EL_OTHER <- "Energy Other uses"
+# -------------------------------------------------------------------------
 
 mod_livestock_energy_share_ui <- function(id, wrap_in_card = TRUE) {
   ns <- NS(id)
   
   content <- tagList(
-    h2("Share of feed in total domestic supply (Gcal)"),
+    h2("Share of feed in total domestic demand (Gcal)"),
     plotly::plotlyOutput(ns("plot"), height = "450px"),
     
     div(
@@ -50,12 +37,11 @@ mod_livestock_energy_share_ui <- function(id, wrap_in_card = TRUE) {
   }
 }
 
-
 mod_livestock_energy_share_server <- function(
     id,
     fact,
     r_country,
-    r_scenarios = shiny::reactive(NULL)  # reactive/function returning scenario CODES (or NULL)
+    r_scenarios = shiny::reactive(NULL)
 ) {
   moduleServer(id, function(input, output, session) {
     
@@ -89,7 +75,7 @@ mod_livestock_energy_share_server <- function(
       df0 <- fact %>%
         dplyr::filter(
           .data$Region == r_country(),
-          .data$Element %in% c("Energy Domestic supply quantity", "Energy Feed"),
+          .data$Element %in% c(EL_FOOD, EL_FEED, EL_OTHER),
           .data$Item == "All",
           .data$Unit == "Gcal"
         ) %>%
@@ -104,10 +90,9 @@ mod_livestock_energy_share_server <- function(
       
       if (length(wanted) > 0) {
         keep <- intersect(wanted, df0)
-        return(wanted[wanted %in% keep])  # preserve wanted order
+        return(wanted[wanted %in% keep])
       }
       
-      # fallback: present ordered by SCENARIO_LEVELS_DEFAULT if available
       if (exists("SCENARIO_LEVELS_DEFAULT", inherits = TRUE)) {
         base <- get("SCENARIO_LEVELS_DEFAULT", inherits = TRUE)
         known   <- intersect(base, df0)
@@ -116,7 +101,7 @@ mod_livestock_energy_share_server <- function(
       }
       
       sort(df0)
-    }) %>% bindCache(r_country(), paste0(scen_codes_ordered(), collapse = ","))
+    }) %>% shiny::bindCache(r_country(), paste0(scen_codes_ordered(), collapse = ","))
     
     # ----------------------------------------------------------------------
     # Data builder
@@ -126,20 +111,20 @@ mod_livestock_energy_share_server <- function(
       
       scen_allowed <- scen_levels_effective()
       if (!length(scen_allowed)) {
-        return(list(long = tibble(), wide = tibble()))
+        return(list(long = tibble::tibble(), wide = tibble::tibble()))
       }
       
       df_raw <- fact %>%
         dplyr::filter(
           .data$Region == r_country(),
-          .data$Element %in% c("Energy Domestic supply quantity", "Energy Feed"),
+          .data$Element %in% c(EL_FOOD, EL_FEED, EL_OTHER),
           .data$Item == "All",
           .data$Unit == "Gcal",
           .data$Scenario %in% scen_allowed
         )
       
       if (!nrow(df_raw)) {
-        return(list(long = tibble(), wide = tibble()))
+        return(list(long = tibble::tibble(), wide = tibble::tibble()))
       }
       
       # numeric safety for Value
@@ -160,21 +145,28 @@ mod_livestock_energy_share_server <- function(
       df_wide <- df %>%
         tidyr::pivot_wider(names_from = .data$Element, values_from = .data$Value)
       
-      # Ensure both columns exist even if missing in some countries
-      if (!("Energy Domestic supply quantity" %in% names(df_wide))) df_wide[["Energy Domestic supply quantity"]] <- NA_real_
-      if (!("Energy Feed" %in% names(df_wide))) df_wide[["Energy Feed"]] <- NA_real_
+      # Ensure required columns exist (set to NA if absent, then coalesce to 0 for the sum)
+      if (!(EL_FOOD  %in% names(df_wide))) df_wide[[EL_FOOD]]  <- NA_real_
+      if (!(EL_FEED  %in% names(df_wide))) df_wide[[EL_FEED]]  <- NA_real_
+      if (!(EL_OTHER %in% names(df_wide))) df_wide[[EL_OTHER]] <- NA_real_
       
       df_wide <- df_wide %>%
         dplyr::mutate(
-          share_feed     = dplyr::if_else(
-            is.finite(`Energy Domestic supply quantity`) & `Energy Domestic supply quantity` > 0 &
-              is.finite(`Energy Feed`),
-            `Energy Feed` / `Energy Domestic supply quantity`,
+          food_gcal  = dplyr::coalesce(.data[[EL_FOOD]],  0),
+          feed_gcal  = dplyr::coalesce(.data[[EL_FEED]],  0),
+          other_gcal = dplyr::coalesce(.data[[EL_OTHER]], 0),
+          
+          # Domestic demand = Food + Feed + Other uses
+          `Energy Domestic demand` = .data$food_gcal + .data$feed_gcal + .data$other_gcal,
+          
+          share_feed = dplyr::if_else(
+            is.finite(.data$`Energy Domestic demand`) & .data$`Energy Domestic demand` > 0,
+            .data$feed_gcal / .data$`Energy Domestic demand`,
             NA_real_
           ),
           share_feed_pct = 100 * .data$share_feed,
-          total_million  = `Energy Domestic supply quantity` / 1e6,
-          feed_million   = `Energy Feed` / 1e6
+          total_million  = .data$`Energy Domestic demand` / 1e6,
+          feed_million   = .data$feed_gcal / 1e6
         ) %>%
         dplyr::mutate(
           Scenario = factor(as.character(.data$Scenario), levels = scen_allowed),
@@ -184,11 +176,16 @@ mod_livestock_energy_share_server <- function(
       
       df_long <- df_wide %>%
         tidyr::pivot_longer(
-          cols = c("Energy Domestic supply quantity", "Energy Feed"),
+          cols = c("Energy Domestic demand", "feed_gcal"),
           names_to  = "Element",
           values_to = "Value"
         ) %>%
         dplyr::mutate(
+          Element = dplyr::recode(
+            .data$Element,
+            "Energy Domestic demand" = "Energy Domestic demand",
+            "feed_gcal"                   = "Energy Feed"
+          ),
           Value_million = .data$Value / 1e6,
           Scenario_code = as.character(.data$Scenario),
           Scenario_lab  = scenario_label_vec(.data$Scenario_code),
@@ -200,10 +197,11 @@ mod_livestock_energy_share_server <- function(
             ifelse(is.finite(share_feed_pct), paste0(round(share_feed_pct, 1), " %"), "NA"),
             "<extra></extra>"
           )
-        )
+        ) %>%
+        dplyr::filter(is.finite(.data$Value_million))
       
       list(long = df_long, wide = df_wide)
-    }) %>% bindCache(r_country(), paste0(scen_levels_effective(), collapse = ","))
+    }) %>% shiny::bindCache(r_country(), paste0(scen_levels_effective(), collapse = ","))
     
     # ----------------------------------------------------------------------
     # Plot
@@ -215,7 +213,6 @@ mod_livestock_energy_share_server <- function(
       
       validate(need(nrow(df_long) > 0, "No data available for this country / scenario selection."))
       
-      # R/99 tokens (if available)
       th <- if (exists("get_plotly_tokens", mode = "function", inherits = TRUE)) {
         get_plotly_tokens()
       } else {
@@ -226,16 +223,24 @@ mod_livestock_energy_share_server <- function(
         )
       }
       
-      # Colors (prefer sankey palette if available, else defaults)
+      # safe palette getter (avoid subscript out of bounds)
+      .safe_pal <- function(pal, key){
+        if (is.null(pal)) return(NULL)
+        nms <- names(pal)
+        if (is.null(nms) || !(key %in% nms)) return(NULL)
+        unname(pal[key])
+      }
+      
       col_total <- "#F28E2B"
       col_feed  <- "#59A14F"
       if (exists("sankey_node_palette", mode = "function", inherits = TRUE)) {
         pal_sankey <- sankey_node_palette()
-        col_total  <- pal_sankey[["Domestic supply"]] %||% col_total
-        col_feed   <- pal_sankey[["Feed"]]            %||% col_feed
+        col_total  <- .safe_pal(pal_sankey, "Domestic demand") %||%
+          .safe_pal(pal_sankey, "Domestic supply") %||% col_total
+        col_feed   <- .safe_pal(pal_sankey, "Feed") %||% col_feed
       }
       
-      df_total <- df_long %>% dplyr::filter(.data$Element == "Energy Domestic supply quantity")
+      df_total <- df_long %>% dplyr::filter(.data$Element == "Energy Domestic demand")
       df_feed  <- df_long %>% dplyr::filter(.data$Element == "Energy Feed")
       
       tick_vals  <- df_wide$idx
@@ -249,7 +254,7 @@ mod_livestock_energy_share_server <- function(
             data = df_total,
             x    = ~idx,
             y    = ~Value_million,
-            name = "Domestic supply",
+            name = "Domestic demand",
             marker = list(color = col_total),
             hovertext = ~hover,
             hoverinfo = "text",
@@ -266,12 +271,9 @@ mod_livestock_energy_share_server <- function(
             y    = ~Value_million,
             name = "Feed",
             marker = list(color = col_feed),
-            
-            # ✅ hover only (no text inside bars)
             hovertext = ~hover,
             hoverinfo = "text",
             textposition = "none",
-            
             offsetgroup = "feed"
           )
       }
@@ -300,7 +302,7 @@ mod_livestock_energy_share_server <- function(
           margin = list(l = 70, r = 20, t = 80, b = 70)
         )
       
-      # Horizontal dotted lines + % labels (at feed level)
+      # dotted lines + % labels
       df_labels <- df_wide %>%
         dplyr::filter(
           is.finite(.data$idx),
@@ -321,7 +323,7 @@ mod_livestock_energy_share_server <- function(
             x1 = xi + 0.25,
             y0 = yi,
             y1 = yi,
-            line = list(dash = "dot", width = 1, color = dotted_col)
+            line = list(dash = "dot", width = 1, color = "#FFFFFF")
           )
         })
         
@@ -342,7 +344,6 @@ mod_livestock_energy_share_server <- function(
           )
       }
       
-      # Apply R/99 global theme if available
       if (exists("plotly_apply_global_theme", mode = "function", inherits = TRUE)) {
         p <- plotly_apply_global_theme(p, bg = "transparent", grid = "y")
       }
@@ -360,11 +361,13 @@ mod_livestock_energy_share_server <- function(
       txt <- glue::glue(
         "<p>
         This chart shows the <strong>share of energy allocated to livestock feed</strong> within the country’s
-        total <em>domestic supply</em> of agricultural products (Gcal), by scenario.<br>
-        The orange bar is the <em>total domestic supply</em>, and the green bar is the <em>energy used as feed</em>.
+        <strong>domestic demand</strong> of agricultural products (Gcal), by scenario.<strong>Domestic demand</strong> 
+        is defined as the sum of <em>Food</em>, <em>Feed</em> and <em>Other uses</em>
+        (Domestic demand = Food + Feed + Other uses).<br>
+        The orange bar is the <em>domestic demand</em>, and the green bar is the <em>energy used as feed</em>.
         Values are shown in <strong>millions of Gcal</strong>.<br>
         The horizontal dotted line and the percentage label indicate the <strong>feed share</strong>
-        (Energy Feed / Energy Domestic supply quantity).
+        (Energy Feed / Domestic demand).
         </p>"
       )
       htmltools::HTML(txt)
@@ -384,12 +387,12 @@ mod_livestock_energy_share_server <- function(
         
         out <- df_wide %>%
           dplyr::transmute(
-            Country             = r_country(),
-            Scenario_code       = as.character(.data$Scenario),
-            Scenario_label      = scenario_label_vec(as.character(.data$Scenario)),
-            Domestic_supply_Gcal = `Energy Domestic supply quantity`,
-            Feed_Gcal           = `Energy Feed`,
-            Share_feed_pct      = .data$share_feed_pct
+            Country                   = r_country(),
+            Scenario_code             = as.character(.data$Scenario),
+            Scenario_label            = scenario_label_vec(as.character(.data$Scenario)),
+            Domestic_consumption_Gcal = .data$`Energy Domestic demand`,
+            Feed_Gcal                 = .data$feed_gcal,
+            Share_feed_pct            = .data$share_feed_pct
           )
         
         readr::write_delim(out, file, delim = ";", na = "")
